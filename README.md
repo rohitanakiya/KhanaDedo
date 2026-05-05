@@ -1,5 +1,11 @@
 # 🍽️ AI Food Recommendation Backend
 
+> 🚀 **Live demo:** https://foodhelp-frontend.vercel.app
+> **API base:** https://ai-food-backend-ib8i.onrender.com — health check at [`/health`](https://ai-food-backend-ib8i.onrender.com/health)
+> **Frontend repo:** [foodhelp-frontend](https://github.com/rohitanakiya/foodhelp-frontend)
+>
+> _Hosted on Render's free tier — the first request after idle takes ~30s to wake up. Postgres + local Transformers.js embeddings (Xenova/all-MiniLM-L6-v2)._
+
 ## 🚀 Project Overview
 
 This project is a **backend system for an AI-powered food recommendation engine**.
@@ -42,12 +48,14 @@ Top Food Recommendations
 
 ## 🏗️ Tech Stack
 
-* **Backend:** Node.js + TypeScript
-* **Framework:** Express
-* **Database:** PostgreSQL
-* **Authentication:** JWT
+* **Backend:** Node.js + TypeScript (strict)
+* **Framework:** Express 5
+* **Database:** PostgreSQL (JSONB embeddings, idempotent migration runner)
+* **Authentication:** JWT (user identity) + optional API-key gateway (rate-limiter)
 * **ORM/DB Access:** pg (node-postgres)
-* **AI Layer (current):** Simulated embeddings + cosine similarity
+* **Embeddings:** [`@xenova/transformers`](https://github.com/xenova/transformers.js) — `Xenova/all-MiniLM-L6-v2` (384-dim), runs locally with no API costs
+* **Validation:** Zod schemas + centralized error middleware
+* **Hosting:** Render (Web Service + Postgres) · Vercel (frontend)
 
 ---
 
@@ -163,23 +171,33 @@ Response:
 
 ---
 
+## ⚡ Try it against the live API
+
+```bash
+curl -s -X POST https://ai-food-backend-ib8i.onrender.com/chat/recommend \
+  -H "Content-Type: application/json" \
+  -d '{"text":"cheap high protein veg food in bangalore"}' | jq
+```
+
+The first request after idle takes ~30s on Render's free tier (cold start). After that, responses are <1s.
+
+---
+
 ## ⚠️ Current Limitations
 
-* Uses **fake embeddings** (for learning/demo purposes)
-* No real vector database yet
-* Limited dataset (sample data only)
-* Rule-based NLP (not full LLM yet)
+* Dataset is hand-seeded (~30 menu items across a handful of restaurants) — enough to show the ranking working, not enough to be a real recommender.
+* Embeddings are stored as JSONB and scanned linearly. Fine for demo scale; would migrate to pgvector for production.
+* Filter extraction is rule-based regex, not an LLM. Reliable for the demo queries, brittle for edge cases.
 
 ---
 
 ## 🔮 Future Improvements
 
-* 🔗 Integrate real embeddings (OpenAI)
-* 📊 Use vector DB (pgvector / Pinecone)
-* 🧠 Replace rule-based parsing with LLM
-* 📱 Build frontend UI
-* 📍 Add location-based recommendations
-* 👤 Personalization (user preferences)
+* 📊 Migrate JSONB embeddings → pgvector with HNSW index
+* 🧠 LLM-driven filter extraction (replace regex)
+* 📍 Location-based ranking (radius from user)
+* 👤 Personalization from search history
+* 🍽️ Real data ingestion pipeline (Zomato / Swiggy)
 
 ---
 
@@ -404,24 +422,22 @@ The following features are planned to evolve it into a full production-ready sys
 
 ---
 
-### 🚀 Deployment & Scaling
+### 🚀 Deployment & Scaling — ✅ done for v1
 
-* Deploy backend (AWS / Render / Railway)
-* Deploy frontend (Vercel)
-* Add:
-
-  * Docker support
-  * CI/CD pipeline
-  * environment configs
+* ✅ Backend deployed on Render (`render.yaml` blueprint, auto-deploy on push to `main`)
+* ✅ Postgres on Render free tier with SSL
+* ✅ Frontend deployed on Vercel
+* 🔜 Docker / CI / observability when this graduates past portfolio scope
 
 ---
 
-### 🔐 Production Readiness
+### 🔐 Production Readiness — ✅ done for v1
 
-* Input validation (Zod / Joi)
-* Rate limiting
-* Logging & monitoring
-* Error tracking
+* ✅ Input validation (Zod) on every request body
+* ✅ Centralized error middleware with typed `ApiError` hierarchy
+* ✅ CORS allowlist driven by env var
+* ✅ Rate limiting (via [api-rate-limiter](https://github.com/rohitanakiya/api-rate-limiter) gateway in Path B mode)
+* 🔜 Structured logging + Sentry-style error tracking
 
 ---
 
