@@ -1,4 +1,8 @@
-# Render blueprint — describes the Web Service + Postgres for ai-food-backend.
+# Render blueprint — describes the Web Service for ai-food-backend.
+#
+# The database lives on Supabase (free tier, no time-based expiry, with
+# pgvector available). Render Postgres was retired after the free-tier
+# 90-day clock ran out.
 
 services:
   - type: web
@@ -19,19 +23,19 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # DATABASE_URL points at Supabase. Managed in the Render dashboard
+      # rather than committed here so the Supabase password doesn't end
+      # up in source. sync:false tells Render to leave whatever was set
+      # in the dashboard alone.
       - key: DATABASE_URL
-        fromDatabase:
-          name: ai-food-db
-          property: connectionString
+        sync: false
+      # JWT_SECRET also lives in the dashboard. Was generated once via
+      # `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
+      # and stored there. Don't rotate without re-issuing all JWTs.
       - key: JWT_SECRET
-        generateValue: true
+        sync: false
       - key: EMBEDDINGS_PROVIDER
         value: local
+      # Update CORS_ORIGINS in the dashboard if the frontend URL changes.
       - key: CORS_ORIGINS
-        value: http://localhost:5173,http://localhost:3000
-
-databases:
-  - name: ai-food-db
-    plan: free
-    region: oregon
-    postgresMajorVersion: "16"
+        sync: false
