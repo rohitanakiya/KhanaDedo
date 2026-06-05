@@ -12,7 +12,7 @@ flowchart LR
     User([User browser])
     FE[React 19 frontend<br/>Vercel]
     BE[Node.js / Express backend<br/>Render Web Service]
-    DB[(PostgreSQL 16<br/>Render Managed)]
+    DB[(PostgreSQL 16<br/>Supabase / ap-south-1)]
     EMB[/Local embeddings<br/>Transformers.js<br/>Xenova/all-MiniLM-L6-v2/]
 
     User -->|HTTPS| FE
@@ -48,7 +48,7 @@ Latency: roughly 800ms cold (model load), 50-150ms warm.
 |-----------------|-----------------------------------|-------------|-------|
 | Frontend        | React 19, Vite, TS, Tailwind, TanStack Query | Vercel      | Static SPA, talks to backend via `VITE_API_BASE` |
 | Backend         | Node.js 22, TypeScript, Express 5 | Render Web Service (free tier) | Runs `node dist/server.js` |
-| Database        | PostgreSQL 16                     | Render Managed Postgres (free tier) | TLS enforced |
+| Database        | PostgreSQL 16                     | Supabase free tier (ap-south-1 Mumbai) | TLS enforced, includes pgvector |
 | Embeddings      | `@xenova/transformers`, `Xenova/all-MiniLM-L6-v2`, 384-dim | in-process on backend | Optional dep; backend gracefully falls back to filter-only ranking if missing |
 | Rate limiter    | api-rate-limiter (Python/FastAPI/Redis) | local-only at present | Not in the live request path; designed to be co-deployed in gateway mode |
 
@@ -178,4 +178,4 @@ ai-food-backend/
 - Backend repo: https://github.com/rohitanakiya/foodhelp
 - Rate-limiter repo: https://github.com/rohitanakiya/api-rate-limiter
 
-Last updated: 2026-05-06.
+Last updated: 2026-06-03.

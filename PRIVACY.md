@@ -55,8 +55,8 @@ device identifiers, or location.
 
 ## Where data is stored
 
-- **PostgreSQL** (Render Managed Postgres, US-Oregon region). TLS
-  enforced. Single-tenant database.
+- **PostgreSQL** (Supabase, ap-south-1 / Mumbai region). TLS enforced.
+  Single-tenant project on Supabase's free tier.
 - **No data warehouse, no analytics pipeline, no log shipping** to
   external services beyond Render's own platform telemetry.
 
@@ -64,8 +64,8 @@ device identifiers, or location.
 
 - User accounts: indefinitely while the account remains active.
 - JWTs: 7-day expiry, after which the user must log in again.
-- Database backups: not currently retained off-host. Render provides
-  short-term automated backups within their platform.
+- Database backups: not currently retained off-host. Supabase provides
+  daily point-in-time backups on the free tier.
 
 ## Sharing with third parties
 
@@ -113,4 +113,4 @@ This document lives in version control. Material changes are recorded
 through commits to the repository, visible in the Git history at
 `https://github.com/rohitanakiya/foodhelp/commits/main/PRIVACY.md`.
 
-Last updated: 2026-05-06.
+Last updated: 2026-06-03.
