@@ -1,120 +1,6 @@
 import { getEmbeddingsProvider } from "../../embeddings";
+import { extractFilters } from "../../filter-extractor";
 import { getMenuItems } from "../menu/menu.service";
-
-type ExtractedFilters = {
-  city?: string;
-  veg?: boolean;
-  maxPrice?: number;
-  minProtein?: number;
-};
-
-// ---------- Filter extraction (rule-based NLP) ----------
-
-function extractVegFilter(input: string): boolean | undefined {
-  const text = input.toLowerCase();
-
-  if (/\b(non[-\s]?veg|chicken|mutton|meat|fish|egg)\b/.test(text)) {
-    return false;
-  }
-
-  if (/\b(veg|vegetarian|plant[-\s]?based)\b/.test(text)) {
-    return true;
-  }
-
-  return undefined;
-}
-
-function extractCity(input: string): string | undefined {
-  const text = input.toLowerCase();
-
-  const cityMap: Record<string, string> = {
-    bengaluru: "bangalore",
-  };
-
-  const knownCities = [
-    "bangalore",
-    "bengaluru",
-    "mumbai",
-    "delhi",
-    "pune",
-    "hyderabad",
-    "chennai",
-    "kolkata",
-  ];
-
-  for (const city of knownCities) {
-    if (text.includes(city)) {
-      return cityMap[city] ?? city;
-    }
-  }
-
-  return undefined;
-}
-
-function extractMaxPrice(input: string): number | undefined {
-  const text = input.toLowerCase();
-
-  const contextualMatch = text.match(
-    /\b(?:under|below|less than|max|maximum|up to|upto)\s*(?:rs\.?|inr|\$)?\s*(\d+(?:\.\d+)?)\b/
-  );
-
-  if (contextualMatch) {
-    return Number(contextualMatch[1]);
-  }
-
-  const priceMatch = text.match(
-    /\b(?:price|budget)\s*(?:is|=|:)?\s*(\d+(?:\.\d+)?)\b/
-  );
-
-  if (priceMatch) {
-    return Number(priceMatch[1]);
-  }
-
-  if (/\b(cheap|affordable|budget)\b/.test(text)) {
-    return 300;
-  }
-
-  return undefined;
-}
-
-function extractMinProtein(input: string): number | undefined {
-  const text = input.toLowerCase();
-
-  const contextualMatch = text.match(
-    /\b(?:at least|min|minimum|more than|above)\s*(\d+(?:\.\d+)?)\s*g?\s*protein\b/
-  );
-
-  if (contextualMatch) {
-    return Number(contextualMatch[1]);
-  }
-
-  const genericMatch = text.match(
-    /\b(\d+(?:\.\d+)?)\s*g?\s*protein\b/
-  );
-
-  if (genericMatch) {
-    return Number(genericMatch[1]);
-  }
-
-  if (/\b(high protein|protein[-\s]?rich|rich in protein)\b/.test(text)) {
-    return 20;
-  }
-
-  return undefined;
-}
-
-export function extractFiltersFromText(input: string): ExtractedFilters {
-  const filters: ExtractedFilters = {
-    city: extractCity(input),
-    veg: extractVegFilter(input),
-    maxPrice: extractMaxPrice(input),
-    minProtein: extractMinProtein(input),
-  };
-
-  return Object.fromEntries(
-    Object.entries(filters).filter(([, v]) => v !== undefined)
-  ) as ExtractedFilters;
-}
 
 // ---------- Embedding helpers ----------
 
@@ -183,20 +69,24 @@ function hybridScore(
 // ---------- Main entry point ----------
 
 export async function getRecommendationsFromText(input: string) {
-  const filters = extractFiltersFromText(input);
+  // 1. Extract structured filters from the natural-language query.
+  //    The extractor picks Groq if available and falls back to regex.
+  const { filters, provider: filterProvider, fellBack } = await extractFilters(input);
 
+  // 2. Narrow the candidate set with SQL filters.
   const items = await getMenuItems({
     ...filters,
     limit: 50,
     offset: 0,
   });
 
+  // 3. Embed the query for semantic ranking.
   let queryEmbedding: number[] | null = null;
-  let providerName = "none";
+  let embeddingProvider = "none";
 
   try {
     const provider = getEmbeddingsProvider();
-    providerName = provider.name;
+    embeddingProvider = provider.name;
     queryEmbedding = await provider.embed(input);
   } catch (err) {
     // If the provider can't initialise (e.g. OpenAI selected with no
@@ -204,6 +94,7 @@ export async function getRecommendationsFromText(input: string) {
     console.warn("Embeddings provider unavailable, falling back:", (err as Error).message);
   }
 
+  // 4. Score each candidate and rank.
   const scored = items.map((item) => {
     const itemEmbedding = coerceEmbedding(item.embedding);
 
@@ -225,7 +116,9 @@ export async function getRecommendationsFromText(input: string) {
   const ranked = scored.sort((a, b) => b.score - a.score);
 
   return {
-    provider: providerName,
+    provider: embeddingProvider,
+    filterProvider,
+    ...(fellBack ? { filterProviderFellBack: true } : {}),
     filters,
     recommendations: ranked.slice(0, 10),
   };
