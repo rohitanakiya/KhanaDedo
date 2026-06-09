@@ -3,6 +3,7 @@ import pool from "../../db";
 type MenuFilters = {
   city?: string;
   veg?: boolean;
+  vegan?: boolean;
   minProtein?: number;
   maxPrice?: number;
   limit?: number;
@@ -31,6 +32,11 @@ export async function getMenuItems(filters: MenuFilters): Promise<MenuItemRow[]>
   if (filters.veg !== undefined) {
     values.push(filters.veg);
     conditions.push(`m.veg = $${values.length}`);
+  }
+
+  if (filters.vegan !== undefined) {
+    values.push(filters.vegan);
+    conditions.push(`m.vegan = $${values.length}`);
   }
 
   if (filters.minProtein !== undefined) {

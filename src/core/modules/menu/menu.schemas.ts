@@ -12,6 +12,11 @@ export const menuQuerySchema = z.object({
     .transform((v) => v === "true")
     .optional(),
 
+  vegan: z
+    .union([z.literal("true"), z.literal("false")])
+    .transform((v) => v === "true")
+    .optional(),
+
   minProtein: z.coerce
     .number()
     .nonnegative("minProtein must be >= 0")

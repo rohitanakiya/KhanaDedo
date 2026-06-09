@@ -1,6 +1,7 @@
 export type ExtractedFilters = {
   city?: string;
   veg?: boolean;
+  vegan?: boolean;
   maxPrice?: number;
   minProtein?: number;
 };

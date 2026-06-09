@@ -2,11 +2,23 @@
  * Rule-based filter extractor.
  *
  * Reliable for the known patterns ("cheap", "veg", "X grams protein",
- * "under N rupees", named cities) and the default when GROQ_API_KEY
- * is not configured. Also the fallback when the Groq provider errors.
+ * "under N rupees", named cities, "vegan" synonyms) and the default
+ * when GROQ_API_KEY is not configured. Also the fallback when the
+ * Groq provider errors.
  */
 
 import type { ExtractedFilters } from "./types";
+
+function extractVegan(input: string): boolean | undefined {
+  const text = input.toLowerCase();
+
+  // Strict vegan signals
+  if (/\b(vegan|plant[-\s]?only|no dairy and no egg|dairy[-\s]?free vegan)\b/.test(text)) {
+    return true;
+  }
+
+  return undefined;
+}
 
 function extractVegFilter(input: string): boolean | undefined {
   const text = input.toLowerCase();
@@ -15,7 +27,7 @@ function extractVegFilter(input: string): boolean | undefined {
     return false;
   }
 
-  if (/\b(veg|vegetarian|plant[-\s]?based)\b/.test(text)) {
+  if (/\b(veg|vegetarian|plant[-\s]?based|vegan)\b/.test(text)) {
     return true;
   }
 
@@ -88,9 +100,14 @@ function extractMinProtein(input: string): number | undefined {
 }
 
 export function extractWithRegex(input: string): ExtractedFilters {
+  const vegan = extractVegan(input);
+  // If user said vegan, that implies veg=true too (every vegan dish is veg)
+  const veg = vegan === true ? true : extractVegFilter(input);
+
   const raw: ExtractedFilters = {
     city: extractCity(input),
-    veg: extractVegFilter(input),
+    veg,
+    vegan,
     maxPrice: extractMaxPrice(input),
     minProtein: extractMinProtein(input),
   };

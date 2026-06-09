@@ -23,6 +23,7 @@ const TIMEOUT_MS = 5_000;
 const ResponseSchema = z.object({
   city: z.string().nullish(),
   veg: z.boolean().nullish(),
+  vegan: z.boolean().nullish(),
   maxPrice: z.number().nullish(),
   minProtein: z.number().nullish(),
 });
@@ -31,17 +32,21 @@ const SYSTEM_PROMPT = `You extract structured food-search filters from a user's 
 
 Output ONLY a JSON object with these optional fields:
 - "city": one of "bangalore", "mumbai", "delhi", "pune", "hyderabad", "chennai", "kolkata". If the user says "bengaluru", return "bangalore".
-- "veg": true if user wants vegetarian, false if they explicitly want non-veg/chicken/mutton/fish/egg, omit otherwise.
-- "maxPrice": maximum price in INR. "cheap"/"affordable"/"budget" => 300. "under N"/"below N" => N. Omit if no price hint.
+- "veg": true if user wants vegetarian (no meat, but dairy/eggs are OK), false if they explicitly want non-veg/chicken/mutton/fish/egg, omit otherwise. IMPORTANT: if the user says "vegan", set veg=true AS WELL AS vegan=true (every vegan dish is vegetarian).
+- "vegan": true ONLY if user explicitly wants vegan (no animal products at all — no dairy, no eggs, no honey). Synonyms: "plant-only", "dairy-free vegetarian", "fully plant-based". Omit otherwise — do NOT default to vegan just because the user said "vegetarian" or "veg".
+- "maxPrice": maximum price in INR. "cheap"/"affordable"/"budget" => 300. "under N"/"below N" => N. Parse spelled-out numbers like "five hundred" => 500. Omit if no price hint.
 - "minProtein": minimum protein in grams. "high protein"/"protein-rich" => 20. "at least Ng protein" => N. Omit if no protein hint.
 
 Omit any field you cannot confidently infer. Do not invent values.
 
 Examples:
 "cheap high protein veg in bangalore" -> {"city":"bangalore","veg":true,"maxPrice":300,"minProtein":20}
+"something vegan and cheap" -> {"veg":true,"vegan":true,"maxPrice":300}
+"plant-only protein-rich meal" -> {"veg":true,"vegan":true,"minProtein":20}
+"vegetarian dinner with paneer" -> {"veg":true}
 "comfort food" -> {}
 "spicy non-veg dinner under 400" -> {"veg":false,"maxPrice":400}
-"30g protein meal" -> {"minProtein":30}
+"chicken dish under five hundred rupees" -> {"veg":false,"maxPrice":500}
 
 Respond with the JSON object only. No prose, no markdown, no code fences.`;
 
@@ -116,13 +121,18 @@ export async function extractWithGroq(input: string): Promise<ExtractedFilters> 
     );
   }
 
-  // Normalise: strip nulls, lowercase city, map bengaluru -> bangalore
+  // Normalise: strip nulls, lowercase city, map bengaluru -> bangalore.
+  // Enforce vegan => veg invariant in case the LLM forgets.
   const out: ExtractedFilters = {};
   if (validated.data.city) {
     const city = validated.data.city.toLowerCase();
     out.city = city === "bengaluru" ? "bangalore" : city;
   }
   if (typeof validated.data.veg === "boolean") out.veg = validated.data.veg;
+  if (typeof validated.data.vegan === "boolean") {
+    out.vegan = validated.data.vegan;
+    if (validated.data.vegan === true) out.veg = true;
+  }
   if (typeof validated.data.maxPrice === "number") out.maxPrice = validated.data.maxPrice;
   if (typeof validated.data.minProtein === "number") out.minProtein = validated.data.minProtein;
 
