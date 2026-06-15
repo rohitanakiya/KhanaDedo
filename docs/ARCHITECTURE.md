@@ -12,13 +12,15 @@ flowchart LR
     User([User browser])
     FE[React 19 frontend<br/>Vercel]
     BE[Node.js / Express backend<br/>Render Web Service]
+    LLM[/Groq LLM<br/>Llama 3.3 70B<br/>intent extraction/]
     DB[(PostgreSQL 16<br/>Supabase / ap-south-1)]
-    EMB[/Local embeddings<br/>Transformers.js<br/>Xenova/all-MiniLM-L6-v2/]
+    EMB[/Local embeddings<br/>Transformers.js<br/>Xenova/all-MiniLM-L6-v2<br/>semantic ranking/]
 
     User -->|HTTPS| FE
     FE -->|HTTPS POST /chat/recommend| BE
-    BE -->|parameterized SQL| DB
-    BE -.->|in-process| EMB
+    BE -->|extract structured filters| LLM
+    BE -->|parameterized SQL with filters| DB
+    BE -.->|embed + cosine rank| EMB
 ```
 
 ### Request flow: anonymous recommendation
@@ -27,20 +29,55 @@ A user types a query in the frontend search bar. The frontend POSTs
 `{ text }` to `/chat/recommend` on the backend. The backend:
 
 1. Validates the body against a Zod schema.
-2. Extracts structured filters (city, veg flag, max price, min
-   protein) from the query using rule-based regex matching.
-3. Generates a 384-dim embedding of the query in-process using
-   `@xenova/transformers` (no external API call).
-4. Queries the `menu_items` table with the extracted filters applied
-   as SQL `WHERE` clauses, then computes cosine similarity in
-   application code between the query embedding and each row's stored
-   embedding (JSONB).
-5. Combines similarity, protein, and rating signals into a final
-   ranking score.
-6. Returns the top-N results plus the extracted filters and a
-   provider tag.
+2. **Extracts structured filters** (city, veg, vegan, max price, min
+   protein) from the natural-language query. Two providers behind a
+   common interface:
+   - **Groq Llama 3.3 70B** (`FILTER_PROVIDER=groq`) — the default
+     when `GROQ_API_KEY` is set. Sub-second JSON-mode call with a
+     tightly-scoped prompt; falls back gracefully on any error.
+   - **Regex** (`FILTER_PROVIDER=regex`) — rule-based fallback that
+     covers the common patterns ("cheap"/"veg"/"under N rupees") with
+     zero external dependency.
+3. **Narrows the candidate set with SQL** — the extracted filters
+   become `WHERE` clauses against `menu_items`. This is the hard
+   constraint layer: anything that fails the filter is dropped before
+   any AI scoring runs.
+4. **Generates a 384-dim embedding** of the query in-process via
+   `@xenova/transformers` (Xenova/all-MiniLM-L6-v2). No external API
+   call.
+5. **Cosine-ranks** the filtered candidates by similarity to the
+   query embedding.
+6. **Hybrid scoring** combines similarity (60%), protein-density
+   (25%), and restaurant rating (15%) into a single sort key.
+7. Returns top-N with both provider tags (`provider` for embeddings,
+   `filterProvider` for Groq/regex) so the UI can show what produced
+   the result.
 
-Latency: roughly 800ms cold (model load), 50-150ms warm.
+Latency: ~800ms cold (model load + first Groq call), 200-400ms warm
+(dominated by Groq round-trip + DB read).
+
+### Why two AI components, not one
+
+The two systems answer different questions and neither can replace
+the other:
+
+| Component       | Question it answers                           | Output                                  |
+|-----------------|------------------------------------------------|------------------------------------------|
+| Groq (Llama)    | *What did the user actually want?*             | `{veg: true, maxPrice: 300, ...}`        |
+| Transformers.js | *Which items match most closely in meaning?*   | Cosine similarity scores per item        |
+
+Pure semantic similarity can't enforce hard constraints. Without
+Groq, a query like "vegan under 300 rupees" would rank a ₹400 paneer
+dish high because the text similarity to "vegan vibes" is high — the
+embedding doesn't enforce price or dietary correctness. The Groq
+filter layer guarantees that only valid candidates reach the
+similarity ranker.
+
+Without Transformers.js, we'd be limited to exact filter matches —
+"comfort food" or "something light" would return either everything
+or nothing, since those have no structured equivalent in our schema.
+Semantic similarity is what lets us rank ambiguous, vibes-based
+queries.
 
 ### Component summary
 
