@@ -1,8 +1,8 @@
-# AI Food Recommendation Backend
+# KhanaDedo — Backend
 
-> **Live demo:** https://foodhelp-frontend.vercel.app
+> **Live demo:** https://khanadedo.vercel.app
 > **API:** https://ai-food-backend-ib8i.onrender.com  ·  [`/health`](https://ai-food-backend-ib8i.onrender.com/health)
-> **Frontend repo:** [foodhelp-frontend](https://github.com/rohitanakiya/foodhelp-frontend)  ·  **Rate-limiter:** [api-rate-limiter](https://github.com/rohitanakiya/api-rate-limiter)
+> **Frontend repo:** [KhanaDedo-frontend](https://github.com/rohitanakiya/KhanaDedo-frontend)  ·  **Rate-limiter:** [api-rate-limiter](https://github.com/rohitanakiya/api-rate-limiter)
 >
 > _Hosted on Render's free tier (~30s cold start after idle). Postgres on Supabase. Local embeddings via Transformers.js — zero paid AI APIs._
 
@@ -67,8 +67,8 @@ First request after idle takes ~30s (Render free-tier cold start). After that, s
 ## Local development
 
 ```bash
-git clone https://github.com/rohitanakiya/foodhelp.git
-cd foodhelp
+git clone https://github.com/rohitanakiya/KhanaDedo.git
+cd KhanaDedo
 npm install
 cp .env.example .env   # fill in DATABASE_URL, JWT_SECRET
 npm run db:migrate

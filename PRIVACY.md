@@ -1,6 +1,6 @@
 # Privacy & Data Handling
 
-This document describes what user data the AI Food Recommendation Backend
+This document describes what user data the KhanaDedo — Backend
 collects, how it is stored, and what controls users have over it. It is
 written to be honest about what is implemented today versus what is
 planned, so nothing here is aspirational.
@@ -9,8 +9,8 @@ planned, so nothing here is aspirational.
 
 This policy covers the backend service deployed at
 `https://ai-food-backend-ib8i.onrender.com` and the source repository at
-`https://github.com/rohitanakiya/foodhelp`. The companion frontend at
-`https://foodhelp-frontend.vercel.app` does not collect any data
+`https://github.com/rohitanakiya/KhanaDedo`. The companion frontend at
+`https://khanadedo.vercel.app` does not collect any data
 beyond what it forwards to this backend.
 
 ## What we collect
@@ -111,6 +111,6 @@ For security-relevant disclosures see [SECURITY.md](./SECURITY.md).
 
 This document lives in version control. Material changes are recorded
 through commits to the repository, visible in the Git history at
-`https://github.com/rohitanakiya/foodhelp/commits/main/PRIVACY.md`.
+`https://github.com/rohitanakiya/KhanaDedo/commits/main/PRIVACY.md`.
 
 Last updated: 2026-06-03.

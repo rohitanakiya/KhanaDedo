@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes how the AI Food Recommendation Backend is
+This document describes how the KhanaDedo — Backend is
 structured today and how it will evolve once the planned Swiggy MCP
 integration lands. It is the canonical reference for anyone reviewing
 the system: integration partners, security reviewers, and contributors.
@@ -171,11 +171,11 @@ ai-food-backend/
 
 ## Live URLs
 
-- Frontend: https://foodhelp-frontend.vercel.app
+- Frontend: https://khanadedo.vercel.app
 - Backend API: https://ai-food-backend-ib8i.onrender.com
 - Backend health: https://ai-food-backend-ib8i.onrender.com/health
-- Frontend repo: https://github.com/rohitanakiya/foodhelp-frontend
-- Backend repo: https://github.com/rohitanakiya/foodhelp
+- Frontend repo: https://github.com/rohitanakiya/KhanaDedo-frontend
+- Backend repo: https://github.com/rohitanakiya/KhanaDedo
 - Rate-limiter repo: https://github.com/rohitanakiya/api-rate-limiter
 
 Last updated: 2026-06-03.

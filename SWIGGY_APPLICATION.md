@@ -41,8 +41,8 @@ stated preferences (price ceiling, dietary, nutrition targets), not as
 a substitute for or override of Swiggy's default ordering.
 
 Live working prototype (with hand-seeded menu data while we wait for
-Swiggy access): https://foodhelp-frontend.vercel.app
-Source: https://github.com/rohitanakiya/foodhelp
+Swiggy access): https://khanadedo.vercel.app
+Source: https://github.com/rohitanakiya/KhanaDedo
 
 ---
 
@@ -63,7 +63,7 @@ PostgreSQL on Supabase stores per-user OAuth refresh tokens
 placement; we deep-link to the Swiggy app for checkout.
 
 Full architecture diagram and component table:
-https://github.com/rohitanakiya/foodhelp/blob/main/docs/ARCHITECTURE.md
+https://github.com/rohitanakiya/KhanaDedo/blob/main/docs/ARCHITECTURE.md
 
 ---
 
@@ -95,7 +95,7 @@ Rohit Anakiya — anakiyarohit@gmail.com (solo developer, primary
 contact)
 
 Security policy and vulnerability reporting procedure:
-https://github.com/rohitanakiya/foodhelp/blob/main/SECURITY.md
+https://github.com/rohitanakiya/KhanaDedo/blob/main/SECURITY.md
 
 ---
 
@@ -120,7 +120,7 @@ extraction via Groq) send only the user's anonymized query text — no
 user identifiers, no session tokens.
 
 Full privacy policy:
-https://github.com/rohitanakiya/foodhelp/blob/main/PRIVACY.md
+https://github.com/rohitanakiya/KhanaDedo/blob/main/PRIVACY.md
 
 ---
 
@@ -135,8 +135,8 @@ https://github.com/rohitanakiya/foodhelp/blob/main/PRIVACY.md
 - Embeddings: local Transformers.js in the backend process (no
   external embedding API)
 - Source repos:
-  - Backend: https://github.com/rohitanakiya/foodhelp
-  - Frontend: https://github.com/rohitanakiya/foodhelp-frontend
+  - Backend: https://github.com/rohitanakiya/KhanaDedo
+  - Frontend: https://github.com/rohitanakiya/KhanaDedo-frontend
   - Companion rate-limiter (designed to sit in front of backend):
     https://github.com/rohitanakiya/api-rate-limiter
 
@@ -165,15 +165,15 @@ assignment, exclusivity — pause and reconsider before agreeing.)
 
 ## Submission checklist (do these before clicking submit)
 
-- [ ] README at https://github.com/rohitanakiya/foodhelp shows the
+- [ ] README at https://github.com/rohitanakiya/KhanaDedo shows the
       current architecture (Supabase, not Render Postgres) and links
       to PRIVACY.md, SECURITY.md, docs/ARCHITECTURE.md
 - [ ] Frontend README includes a screenshot so reviewers see the
       product working
-- [ ] All three repos (foodhelp, foodhelp-frontend,
+- [ ] All three repos (KhanaDedo, KhanaDedo-frontend,
       api-rate-limiter) are pinned on your GitHub profile and have
       1-line descriptions filled in
-- [ ] Live demo at https://foodhelp-frontend.vercel.app returns
+- [ ] Live demo at https://khanadedo.vercel.app returns
       results for a test query (cold-start ~30s on first request)
 - [ ] /health endpoint returns { "status": "ok" }
 
