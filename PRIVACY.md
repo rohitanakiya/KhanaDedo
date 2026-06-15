@@ -83,8 +83,12 @@ identifier, email, or session token will be included in LLM requests.
 
 When the planned Swiggy MCP integration ships, the user's OAuth
 authorization will allow the backend to call Swiggy on the user's
-behalf using a per-user OAuth token. Tokens will be encrypted at rest
-in PostgreSQL.
+behalf using a per-user OAuth 2.1 access token (5-day lifetime, no
+refresh tokens in v1.0 per Swiggy's spec). Access tokens are
+encrypted at rest in PostgreSQL. When a token expires or is revoked
+(401/419 response), the user is re-redirected through Swiggy's
+authorization flow to obtain a new token; we never cache or persist
+expired credentials.
 
 ## User rights and controls
 

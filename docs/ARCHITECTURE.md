@@ -168,9 +168,12 @@ flowchart LR
 - **End-user identity:** JWT issued by `/auth/login`, used to identify
   the user across requests.
 - **Per-user Swiggy authorization:** OAuth 2.1 + PKCE flow during
-  onboarding. The backend exchanges the auth code for a refresh
-  token, stores the refresh token encrypted at rest, and uses it to
-  obtain short-lived access tokens for Swiggy MCP calls.
+  onboarding. The backend exchanges the auth code for a 5-day access
+  token (Swiggy MCP v1.0 does not issue refresh tokens) and stores
+  it encrypted at rest. Token expiry triggers a re-authorization
+  redirect; the 30-day sliding session on Swiggy's side means the
+  OTP step is usually skipped on re-auth if the user is still
+  active.
 - **Gateway rate limiting:** the api-rate-limiter sits in front of the
   orchestrator, enforcing per-user request budgets via API key auth
   before the orchestrator does any work.
