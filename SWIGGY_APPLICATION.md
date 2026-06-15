@@ -33,6 +33,13 @@ Swiggy to a 30-second decision. Initial scope: personal use and a
 small closed beta with friends. The product would deep-link to
 Swiggy's app for actual checkout — no payment handling on our side.
 
+Swiggy is clearly attributed as the source of all restaurant and menu
+data shown to users; results are presented as Swiggy listings, with
+Swiggy branding and an "Order on Swiggy" deep-link on every card.
+Ranking is applied as an additive filter reflecting the user's own
+stated preferences (price ceiling, dietary, nutrition targets), not as
+a substitute for or override of Swiggy's default ordering.
+
 Live working prototype (with hand-seeded menu data while we wait for
 Swiggy access): https://foodhelp-frontend.vercel.app
 Source: https://github.com/rohitanakiya/foodhelp
