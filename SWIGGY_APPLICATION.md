@@ -28,7 +28,7 @@ restaurants and menus, RAG-ranks the results against the constraints
 (price, nutrition, distance, ratings), and presents a top-5 with
 one-line rationales.
 
-The goal is to reduce the 20-minute "what should I eat" doomscroll on
+The goal is to reduce the 30-minute "what should I eat" doomscroll on
 Swiggy to a 30-second decision. Initial scope: personal use and a
 small closed beta with friends. The product would deep-link to
 Swiggy's app for actual checkout — no payment handling on our side.
