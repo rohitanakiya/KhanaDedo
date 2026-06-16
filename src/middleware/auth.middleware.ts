@@ -9,6 +9,12 @@ declare global {
   }
 }
 
+interface JwtPayload {
+  sub?: string;
+  userId?: string;
+  email?: string;
+}
+
 export function authMiddleware(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.header("Authorization");
 
@@ -29,14 +35,20 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
   }
 
   try {
-    const decoded = jwt.verify(token, jwtSecret);
+    const decoded = jwt.verify(token, jwtSecret) as JwtPayload | string;
 
-    if (typeof decoded === "string" || !("userId" in decoded)) {
+    if (typeof decoded === "string") {
       return res.status(401).json({ error: "Invalid token payload" });
     }
 
-    req.userId = (decoded as any).userId;
+    // auth.service signs with `sub`; some older tokens may have used
+    // `userId`. Accept either so existing sessions keep working.
+    const userId = decoded.sub ?? decoded.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "Invalid token payload" });
+    }
 
+    req.userId = userId;
     next();
   } catch (err) {
     console.error("JWT ERROR:", err);

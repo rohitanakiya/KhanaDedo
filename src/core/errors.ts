@@ -69,3 +69,10 @@ export class ConflictError extends ApiError {
     this.name = "ConflictError";
   }
 }
+
+export class InternalServerError extends ApiError {
+  constructor(message = "Internal server error", code = "INTERNAL_ERROR", details?: unknown) {
+    super(500, message, code, details);
+    this.name = "InternalServerError";
+  }
+}

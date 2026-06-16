@@ -9,6 +9,7 @@ import authRoutes from "./core/modules/auth/auth.routes";
 import chatRoutes from "./core/modules/chat/chat.routes";
 import menuRoutes from "./core/modules/menu/menu.routes";
 import profileRoutes from "./core/modules/profile/profile.routes";
+import swiggyRoutes from "./core/modules/swiggy/swiggy.routes";
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use("/auth", authRoutes);
 app.use("/chat", chatRoutes);
 app.use("/menu", menuRoutes);
 app.use("/profile", profileRoutes);
+app.use("/auth/swiggy", swiggyRoutes);
 
 app.get("/health", (_req, res) => {
   res.json({

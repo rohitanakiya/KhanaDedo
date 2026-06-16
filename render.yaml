@@ -23,19 +23,23 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      # DATABASE_URL points at Supabase. Managed in the Render dashboard
-      # rather than committed here so the Supabase password doesn't end
-      # up in source. sync:false tells Render to leave whatever was set
-      # in the dashboard alone.
-      - key: DATABASE_URL
-        sync: false
-      # JWT_SECRET also lives in the dashboard. Was generated once via
-      # `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
-      # and stored there. Don't rotate without re-issuing all JWTs.
-      - key: JWT_SECRET
-        sync: false
       - key: EMBEDDINGS_PROVIDER
         value: local
-      # Update CORS_ORIGINS in the dashboard if the frontend URL changes.
+      # All sensitive secrets live in the dashboard with sync:false so
+      # the actual values never appear in source. See SECURITY.md for
+      # the rotation procedure for each.
+      - key: DATABASE_URL
+        sync: false        # Supabase Session pooler connection string
+      - key: JWT_SECRET
+        sync: false        # 32 random bytes, base64
       - key: CORS_ORIGINS
-        sync: false
+        sync: false        # comma-separated allowed origins
+      - key: GROQ_API_KEY
+        sync: false        # for LLM filter extraction; falls back to regex if missing
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false        # 32 random bytes, base64; encrypts Swiggy access tokens at rest
+      # Optional overrides — defaults are baked into the code
+      - key: SWIGGY_REDIRECT_URI
+        sync: false        # defaults to the prod URL on Render
+      - key: FRONTEND_BASE_URL
+        sync: false        # defaults to khanadedo.vercel.app in prod
