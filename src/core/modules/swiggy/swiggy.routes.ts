@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authMiddleware } from "../../../middleware/auth.middleware";
 import {
+  devFakeConnectSwiggy,
   logoutSwiggy,
   startSwiggyAuth,
   swiggyAuthCallback,
@@ -21,5 +22,13 @@ router.use(authMiddleware);
 router.post("/start", startSwiggyAuth);
 router.post("/logout", logoutSwiggy);
 router.get("/status", swiggyStatus);
+
+
+// Dev-only — inserts a mock Swiggy token so the orchestrator's
+// Swiggy branch can be exercised without real OAuth. The handler
+// refuses to run if NODE_ENV=production or SWIGGY_PROVIDER!=mock.
+if (process.env.NODE_ENV !== "production") {
+  router.post("/dev-fake-connect", devFakeConnectSwiggy);
+}
 
 export default router;

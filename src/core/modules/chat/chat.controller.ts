@@ -7,6 +7,6 @@ export async function recommendFromChat(
   res: Response
 ) {
   const { text } = req.body;
-  const result = await getRecommendationsFromText(text);
+  const result = await getRecommendationsFromText(text, req.userId);
   res.status(200).json(result);
 }

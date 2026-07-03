@@ -215,6 +215,47 @@ export async function swiggyStatus(req: Request, res: Response) {
   });
 }
 
+
+// ---------- POST /auth/swiggy/dev-fake-connect (DEV ONLY) ----------
+
+/**
+ * Inserts a placeholder token for the logged-in user so the
+ * orchestrator's Swiggy branch can be exercised against the mock
+ * client without going through real OAuth.
+ *
+ * Refuses to run in production. Also refuses unless SWIGGY_PROVIDER
+ * is "mock" so we can never accidentally store a fake token that
+ * the real client would try to send to mcp.swiggy.com.
+ */
+export async function devFakeConnectSwiggy(req: Request, res: Response) {
+  if (process.env.NODE_ENV === "production") {
+    throw new BadRequestError("Disabled in production");
+  }
+  const provider = (process.env.SWIGGY_PROVIDER ?? "mock").toLowerCase();
+  if (provider !== "mock") {
+    throw new BadRequestError(
+      `Disabled when SWIGGY_PROVIDER="${provider}" (only allowed under mock)`
+    );
+  }
+
+  const userId = req.userId;
+  if (!userId) throw new UnauthorizedError("Login required");
+
+  await storeToken({
+    kdUserId: userId,
+    accessToken: "dev-mock-token-not-a-real-swiggy-token",
+    expiresInSeconds: 5 * 24 * 60 * 60, // 5 days
+    scope: "mcp:tools",
+    swiggyUserId: "dev-mock-user",
+  });
+
+  res.json({
+    connected: true,
+    provider,
+    note: "Dev-only placeholder token stored. Chat will now route through the mock Swiggy client.",
+  });
+}
+
 // ---------- Internal: error page renderer ----------
 
 function renderError(res: Response, status: number, message: string): void {
