@@ -1,5 +1,6 @@
 import { getEmbeddingsProvider } from "../../embeddings";
 import { extractFilters } from "../../filter-extractor";
+import { synthesize } from "../../response-synthesizer";
 import type { ExtractedFilters } from "../../filter-extractor";
 import { getSwiggyClient } from "../../swiggy/factory";
 import { getToken } from "../../swiggy/tokens";
@@ -99,15 +100,39 @@ async function recommendFromSeed(
     };
   });
 
-  const ranked = scored.sort((a, b) => b.score - a.score);
+  const ranked = scored.sort((a, b) => b.score - a.score).slice(0, 10);
+
+  // Generation (G in RAG) — turn the ranked list into a narrative.
+  const synthesis = await synthesize({
+    query: input,
+    filters,
+    items: ranked.map((it) => ({
+      name: it.itemName,
+      restaurantName: it.restaurantName,
+      priceInr: Number(it.price),
+      rating: it.rating != null ? Number(it.rating) : null,
+      proteinG: it.protein,
+      caloriesKcal: it.calories,
+      similarity: it.similarity,
+    })),
+  });
+
+  // Attach per-item rationale so the frontend can render it inline.
+  const withRationales = ranked.map((it, i) => ({
+    ...it,
+    rationale: synthesis.rationales[i] || undefined,
+  }));
 
   return {
     source: "seed" as const,
     provider: embeddingProvider,
     filterProvider,
     ...(fellBack ? { filterProviderFellBack: true } : {}),
+    synthesis: synthesis.provider !== "none" || synthesis.summary
+      ? { summary: synthesis.summary, provider: synthesis.provider, fellBack: synthesis.fellBack }
+      : undefined,
     filters,
-    recommendations: ranked.slice(0, 10),
+    recommendations: withRationales,
   };
 }
 
@@ -230,16 +255,40 @@ async function recommendFromSwiggy(
     };
   });
 
-  const ranked = scored.sort((a, b) => b.score - a.score);
+  const ranked = scored.sort((a, b) => b.score - a.score).slice(0, 10);
+
+  // Generation step for the Swiggy path. Same shape as the seed path.
+  const synthesis = await synthesize({
+    query: input,
+    filters,
+    items: ranked.map((it) => ({
+      name: it.itemName,
+      restaurantName: it.restaurantName,
+      priceInr: Number(it.price),
+      rating: it.rating != null ? Number(it.rating) : null,
+      isVeg: it.isVeg,
+      isVegan: it.isVegan ?? undefined,
+      description: it.description,
+      similarity: it.similarity,
+    })),
+  });
+
+  const withRationales = ranked.map((it, i) => ({
+    ...it,
+    rationale: synthesis.rationales[i] || undefined,
+  }));
 
   return {
     source: "swiggy" as const,
     provider: embeddingProvider,
     filterProvider,
     ...(fellBack ? { filterProviderFellBack: true } : {}),
+    synthesis: synthesis.provider !== "none" || synthesis.summary
+      ? { summary: synthesis.summary, provider: synthesis.provider, fellBack: synthesis.fellBack }
+      : undefined,
     filters,
     addressLabel: addresses[0].label,
-    recommendations: ranked.slice(0, 10),
+    recommendations: withRationales,
   };
 }
 
