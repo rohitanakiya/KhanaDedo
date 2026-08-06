@@ -51,7 +51,12 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
     req.userId = userId;
     next();
   } catch (err) {
-    console.error("JWT ERROR:", err);
+    // Expired tokens are normal (users leaving tabs open past the TTL).
+    // Only log unexpected verification errors (tampered, malformed, etc.)
+    // so the log doesn't fill with noise on every stale-session page load.
+    if ((err as Error).name !== "TokenExpiredError") {
+      console.warn("JWT verification failed:", (err as Error).message);
+    }
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 }

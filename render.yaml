@@ -43,3 +43,7 @@ services:
         sync: false        # defaults to the prod URL on Render
       - key: FRONTEND_BASE_URL
         sync: false        # defaults to khanadedo.vercel.app in prod
+      - key: RESEND_API_KEY
+        sync: false        # for password-reset emails; falls back to console log if missing
+      - key: RESEND_FROM_ADDRESS
+        sync: false        # defaults to KhanaDedo <onboarding@resend.dev>
