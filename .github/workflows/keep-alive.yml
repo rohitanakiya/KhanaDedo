@@ -1,0 +1,45 @@
+# Prevents Supabase free-tier auto-pause by touching the database
+# through a real API call every 3 days.
+#
+# Supabase pauses projects after ~7 days of no DB activity. Any
+# /chat/recommend call triggers a Postgres query, which resets that
+# idle timer. Runs on GitHub's free Actions minutes, costs nothing.
+#
+# Also acts as a passive uptime monitor — if the ping fails, GitHub
+# emails us. Manual triggers via workflow_dispatch are handy for
+# debugging or waking the app on demand.
+
+name: keep-alive
+
+on:
+  schedule:
+    # Every 3 days at 03:00 UTC (~08:30 IST — off-peak).
+    - cron: '0 3 */3 * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Warm backend and touch database
+        run: |
+          set -e
+          echo "== Waking backend (may take 30s cold-start) =="
+          for i in 1 2 3 4; do
+            if curl -sSfL --max-time 60 https://ai-food-backend-ib8i.onrender.com/health > /tmp/health.json; then
+              echo "Health: $(cat /tmp/health.json)"
+              break
+            fi
+            echo "Attempt $i: no response yet"
+            sleep 5
+          done
+
+          echo "== Firing a real /chat/recommend to touch Postgres =="
+          curl -sSfL --max-time 30 \
+            -X POST https://ai-food-backend-ib8i.onrender.com/chat/recommend \
+            -H "Content-Type: application/json" \
+            -d '{"text":"keep-alive ping — this query hits Postgres to reset the 7-day idle timer"}' \
+            -o /tmp/recommend.json
+          echo "Recommend response byte count: $(wc -c < /tmp/recommend.json)"
+          echo "Success — Supabase idle timer reset."
