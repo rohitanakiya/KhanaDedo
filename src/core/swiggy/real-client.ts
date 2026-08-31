@@ -326,14 +326,28 @@ export class RealSwiggyClient implements SwiggyClient {
     if (args.restaurantId) swiggyArgs.restaurantIdOfAddedItem = args.restaurantId;
     if (typeof args.offset === "number") swiggyArgs.offset = args.offset;
 
-    const raw = await callTool<{
-      items?: RawSwiggyMenuItem[];
-      results?: RawSwiggyMenuItem[];
-      nextOffset?: number | null;
-    }>(accessToken, "search_menu", swiggyArgs);
+    const raw = await callTool<Record<string, unknown>>(
+      accessToken,
+      "search_menu",
+      swiggyArgs
+    );
 
-    const items = (raw.items ?? raw.results ?? []).map(normalizeMenuItem);
-    return { items, nextOffset: raw.nextOffset ?? null };
+    // Debug: log the full raw data payload so we can see exactly what
+    // shape Swiggy returns. Our .items ?? .results extraction may be
+    // wrong — real field name could be nested (data.results, hits,
+    // menuItems, etc.). This log shows us so we can adjust.
+    console.log(
+      `[swiggy-mcp] search_menu raw data payload (first 800 chars): ` +
+        JSON.stringify(raw).slice(0, 800)
+    );
+
+    const rawAsAny = raw as Record<string, unknown>;
+    const items =
+      ((rawAsAny.items ?? rawAsAny.results ?? rawAsAny.menuItems ?? []) as RawSwiggyMenuItem[]).map(
+        normalizeMenuItem
+      );
+    const nextOffset = (rawAsAny.nextOffset ?? null) as number | null;
+    return { items, nextOffset };
   }
 
   async getRestaurantMenu(
