@@ -163,18 +163,46 @@ async function callTool<T>(
     );
   }
 
-  // Swiggy returns tool responses as JSON strings in result.content[0].text
-  // per the MCP spec. Some implementations might return result directly;
-  // handle both shapes defensively.
+  // MCP responses have two content channels:
+  //   result.structuredContent — machine-parseable JSON (preferred)
+  //   result.content[0].text   — human-readable text summary
+  // Swiggy sends the actual data payload in structuredContent, and puts
+  // a short summary like "Found 15 saved addresses" in content[0].text.
+  // Older MCP servers put JSON-serialized data in content[0].text
+  // instead. We check both and prefer structuredContent when present.
   let toolResponse: SwiggyToolResponse<T>;
-  const result = body.result as { content?: Array<{ text: string }> } | SwiggyToolResponse<T>;
+  const result = body.result as {
+    content?: Array<{ type?: string; text?: string }>;
+    structuredContent?: SwiggyToolResponse<T> | unknown;
+  } | SwiggyToolResponse<T>;
 
-  if (result && "content" in result && Array.isArray(result.content) && result.content[0]) {
+  if (
+    result &&
+    "structuredContent" in result &&
+    result.structuredContent &&
+    typeof result.structuredContent === "object"
+  ) {
+    toolResponse = result.structuredContent as SwiggyToolResponse<T>;
+  } else if (
+    result &&
+    "content" in result &&
+    Array.isArray(result.content) &&
+    result.content[0] &&
+    typeof result.content[0].text === "string"
+  ) {
+    const text = result.content[0].text;
     try {
-      toolResponse = JSON.parse(result.content[0].text) as SwiggyToolResponse<T>;
-    } catch (err) {
+      toolResponse = JSON.parse(text) as SwiggyToolResponse<T>;
+    } catch {
+      // content[0].text is plain human text, not JSON, and there was no
+      // structuredContent alongside it. Log the full body for debugging
+      // and throw with a useful message.
+      console.warn(
+        `[swiggy-mcp] ${toolName} returned plain-text content with no ` +
+          `structuredContent. Raw body: ${JSON.stringify(body).slice(0, 800)}`
+      );
       throw new SwiggyClientError(
-        `Invalid JSON in ${toolName} response: ${(err as Error).message}`
+        `${toolName} returned no structured data. Text was: "${text.slice(0, 200)}"`
       );
     }
   } else {
