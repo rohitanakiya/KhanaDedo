@@ -161,6 +161,11 @@ async function recommendFromSwiggy(
     };
   }
   const addressId = addresses[0].addressId;
+  console.log(
+    `[chat] using addressId=${addressId} (from ${addresses.length} addresses; first address: ` +
+      JSON.stringify(addresses[0]).slice(0, 300) +
+      ")"
+  );
 
   // 2. Build a Swiggy-style query. For now, pass the raw user text —
   //    Swiggy's search endpoint handles natural-language queries per

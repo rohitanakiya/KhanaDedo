@@ -296,13 +296,19 @@ function normalizeMenuItem(raw: RawSwiggyMenuItem): SwiggyMenuItem {
 
 export class RealSwiggyClient implements SwiggyClient {
   async getAddresses(accessToken: string): Promise<SwiggyAddress[]> {
-    const data = await callTool<{ addresses?: SwiggyAddress[] } | SwiggyAddress[]>(
+    const data = await callTool<Record<string, unknown> | SwiggyAddress[]>(
       accessToken,
       "get_addresses",
       {}
     );
+    // Dump the raw payload so we can see the actual address shape.
+    console.log(
+      `[swiggy-mcp] get_addresses raw data (first 800 chars): ` +
+        JSON.stringify(data).slice(0, 800)
+    );
     if (Array.isArray(data)) return data;
-    return data.addresses ?? [];
+    const asObj = data as Record<string, unknown>;
+    return ((asObj.addresses ?? asObj.data ?? []) as SwiggyAddress[]);
   }
 
   async searchRestaurants(
@@ -325,6 +331,10 @@ export class RealSwiggyClient implements SwiggyClient {
     if (args.vegOnly) swiggyArgs.vegFilter = 1;
     if (args.restaurantId) swiggyArgs.restaurantIdOfAddedItem = args.restaurantId;
     if (typeof args.offset === "number") swiggyArgs.offset = args.offset;
+
+    console.log(
+      `[swiggy-mcp] calling search_menu with args: ` + JSON.stringify(swiggyArgs)
+    );
 
     const raw = await callTool<Record<string, unknown>>(
       accessToken,
