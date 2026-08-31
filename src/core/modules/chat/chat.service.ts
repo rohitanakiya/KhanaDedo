@@ -173,6 +173,14 @@ async function recommendFromSwiggy(
     vegOnly,
   });
 
+  // Debug: dump the first raw item to see actual Swiggy response shape.
+  // Removes the guessing about field names — we can adjust the normalizer
+  // in real-client.ts based on what's actually there.
+  console.log(
+    `[chat] search_menu returned ${rawItems.length} items. First item raw shape: ` +
+      JSON.stringify(rawItems[0] ?? null).slice(0, 500)
+  );
+
   // 3. Apply hard filters. Swiggy's own filter set doesn't cover:
   //    - Non-veg-only (their API only offers veg-only or mixed; when
   //      the user names a meat dish we filter veg items out ourselves)
@@ -182,6 +190,7 @@ async function recommendFromSwiggy(
   //      recommend items from OPEN restaurants; when undefined at the
   //      real client, we let the deep-link show "closed" at click time)
   //    - Item-level availability
+  const beforeAvailability = rawItems.length;
   let filtered: SwiggyMenuItem[] = rawItems.filter((it) => {
     if (!it.isAvailable) return false;
     if (it.restaurantAvailability && it.restaurantAvailability !== "OPEN") {
@@ -189,6 +198,7 @@ async function recommendFromSwiggy(
     }
     return true;
   });
+  const afterAvailability = filtered.length;
 
   // Veg preference is a strict filter for KhanaDedo (unlike Swiggy's
   // API which returns mixed). If the user named a meat dish, don't
@@ -201,6 +211,8 @@ async function recommendFromSwiggy(
     // Swiggy should have filtered on vegFilter=1, but belt-and-braces.
     filtered = filtered.filter((it) => it.isVeg === true);
   }
+  const afterVeg = filtered.length;
+
   if (filters.vegan) {
     // Swiggy may or may not set isVegan; when undefined, fall back to
     // a description heuristic so we don't return paneer for "vegan".
@@ -214,9 +226,17 @@ async function recommendFromSwiggy(
       return plantFlag && !dairyOrEgg;
     });
   }
+  const afterVegan = filtered.length;
+
   if (typeof filters.maxPrice === "number") {
     filtered = filtered.filter((it) => it.price <= filters.maxPrice!);
   }
+  const afterPrice = filtered.length;
+
+  console.log(
+    `[chat] filter funnel: raw=${beforeAvailability} availability=${afterAvailability} ` +
+      `veg=${afterVeg} vegan=${afterVegan} price=${afterPrice}`
+  );
 
   // 4. Semantic ranking over the filtered set.
   let queryEmbedding: number[] | null = null;
