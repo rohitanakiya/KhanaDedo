@@ -28,6 +28,16 @@ const TIMEOUT_MS = 6_000;
 const ResponseSchema = z.object({
   summary: z.string().min(1),
   rationales: z.array(z.string()),
+  // Best-effort per-item macros the model estimates from the dish name.
+  // Null when the model is unsure — never fabricate a number.
+  nutrition: z
+    .array(
+      z.object({
+        proteinG: z.number().nullable().optional(),
+        caloriesKcal: z.number().nullable().optional(),
+      })
+    )
+    .default([]),
 });
 
 const SYSTEM_PROMPT = `You explain ranked food recommendations to the user in a warm, decisive voice.
@@ -36,8 +46,9 @@ You will receive a user query, extracted filters, and a ranked list of items wit
 Output ONLY a JSON object with:
 - "summary": one sentence (max ~200 chars) that frames the result set for this specific query. No preamble like "Here are..."; jump straight to the substance. Warm but not saccharine.
 - "rationales": array of one-line strings, SAME LENGTH and SAME ORDER as the input items. Each is <= 80 chars and says WHY this item earned its rank vs the others (cheaper, more protein, better rating, closest semantic match, vegan-safe, etc). Never repeat the item's name — the UI already shows it.
+- "nutrition": array of {proteinG, caloriesKcal} objects, SAME LENGTH and SAME ORDER as items. For each item, estimate grams of protein and kcal per typical serving from the dish name (e.g. "Paneer Tikka Bowl" ≈ 22g / 480kcal, "Margherita Pizza" whole ≈ 30g / 800kcal, "Chicken Biryani" ≈ 35g / 720kcal). If an item has proteinG or caloriesKcal already listed in its context, echo those exact numbers. If a dish is truly ambiguous (e.g. just "combo"), return null for that field — do NOT fabricate.
 
-If an item is a poor match despite ranking (e.g. cheapest but low protein when user asked for high-protein), be honest about the tradeoff.
+If an item is a poor match despite ranking (e.g. cheapest but low protein when user asked for high-protein), be honest about the tradeoff in its rationale.
 
 Respond with the JSON object only. No prose, no markdown, no code fences.`;
 
@@ -84,6 +95,7 @@ export async function synthesizeWithGroq(
     return {
       summary: "No items matched those constraints.",
       rationales: [],
+      nutrition: [],
       provider: "groq",
     };
   }
@@ -158,15 +170,31 @@ ${formatItemsForPrompt(input)}`;
     );
   }
 
-  // Ensure rationales length matches items length. LLMs occasionally
-  // return one too many / few; pad or truncate rather than fail.
+  // Ensure rationales + nutrition length matches items length. LLMs
+  // occasionally return one too many / few; pad or truncate rather than fail.
   const rationales = [...validated.data.rationales];
   while (rationales.length < input.items.length) rationales.push("");
   rationales.length = input.items.length;
 
+  const rawNutrition = validated.data.nutrition;
+  const nutrition = input.items.map((_, i) => {
+    const n = rawNutrition[i];
+    return {
+      proteinG:
+        n?.proteinG != null && Number.isFinite(n.proteinG)
+          ? Math.round(n.proteinG)
+          : undefined,
+      caloriesKcal:
+        n?.caloriesKcal != null && Number.isFinite(n.caloriesKcal)
+          ? Math.round(n.caloriesKcal)
+          : undefined,
+    };
+  });
+
   return {
     summary: validated.data.summary,
     rationales,
+    nutrition,
     provider: "groq",
   };
 }

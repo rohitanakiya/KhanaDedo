@@ -118,10 +118,28 @@ async function recommendFromSeed(
   });
 
   // Attach per-item rationale so the frontend can render it inline.
-  const withRationales = ranked.map((it, i) => ({
-    ...it,
-    rationale: synthesis.rationales[i] || undefined,
-  }));
+  const withRationales = ranked.map((it, i) => {
+    const est = synthesis.nutrition[i];
+    // Seed-path items carry real protein/calories on the shape; Swiggy-path
+    // items don't. Read defensively so this block compiles for both.
+    const rawProtein = (it as { protein?: number }).protein;
+    const rawCalories = (it as { calories?: number }).calories;
+    const finalProtein =
+      typeof rawProtein === "number" ? rawProtein : est?.proteinG;
+    const finalCalories =
+      typeof rawCalories === "number" ? rawCalories : est?.caloriesKcal;
+    // Mark as estimate only when we actually filled in from Groq (not seed).
+    const nutritionEstimated =
+      (typeof rawProtein !== "number" && typeof est?.proteinG === "number") ||
+      (typeof rawCalories !== "number" && typeof est?.caloriesKcal === "number");
+    return {
+      ...it,
+      protein: finalProtein,
+      calories: finalCalories,
+      nutritionEstimated: nutritionEstimated || undefined,
+      rationale: synthesis.rationales[i] || undefined,
+    };
+  });
 
   return {
     source: "seed" as const,
@@ -298,10 +316,28 @@ async function recommendFromSwiggy(
     })),
   });
 
-  const withRationales = ranked.map((it, i) => ({
-    ...it,
-    rationale: synthesis.rationales[i] || undefined,
-  }));
+  const withRationales = ranked.map((it, i) => {
+    const est = synthesis.nutrition[i];
+    // Seed-path items carry real protein/calories on the shape; Swiggy-path
+    // items don't. Read defensively so this block compiles for both.
+    const rawProtein = (it as { protein?: number }).protein;
+    const rawCalories = (it as { calories?: number }).calories;
+    const finalProtein =
+      typeof rawProtein === "number" ? rawProtein : est?.proteinG;
+    const finalCalories =
+      typeof rawCalories === "number" ? rawCalories : est?.caloriesKcal;
+    // Mark as estimate only when we actually filled in from Groq (not seed).
+    const nutritionEstimated =
+      (typeof rawProtein !== "number" && typeof est?.proteinG === "number") ||
+      (typeof rawCalories !== "number" && typeof est?.caloriesKcal === "number");
+    return {
+      ...it,
+      protein: finalProtein,
+      calories: finalCalories,
+      nutritionEstimated: nutritionEstimated || undefined,
+      rationale: synthesis.rationales[i] || undefined,
+    };
+  });
 
   return {
     source: "swiggy" as const,

@@ -24,12 +24,13 @@ function chosenProvider(): "groq" | "none" {
 const EMPTY: Synthesis = {
   summary: "",
   rationales: [],
+  nutrition: [],
   provider: "none",
 };
 
 export async function synthesize(input: SynthesisInput): Promise<Synthesis> {
   if (input.items.length === 0) {
-    return { ...EMPTY, rationales: [] };
+    return { ...EMPTY, rationales: [], nutrition: [] };
   }
 
   const provider = chosenProvider();
@@ -37,6 +38,7 @@ export async function synthesize(input: SynthesisInput): Promise<Synthesis> {
     return {
       summary: "",
       rationales: new Array(input.items.length).fill(""),
+      nutrition: new Array(input.items.length).fill({}),
       provider: "none",
     };
   }
@@ -50,6 +52,7 @@ export async function synthesize(input: SynthesisInput): Promise<Synthesis> {
     return {
       summary: "",
       rationales: new Array(input.items.length).fill(""),
+      nutrition: new Array(input.items.length).fill({}),
       provider: "none",
       fellBack: true,
     };
