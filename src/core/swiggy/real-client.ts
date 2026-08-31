@@ -263,6 +263,7 @@ interface RawSwiggyAddress {
 }
 
 interface RawSwiggyMenuItem {
+  // Camel-case aliases (some Swiggy tools use these)
   itemId?: string;
   id?: string;
   name?: string;
@@ -280,10 +281,17 @@ interface RawSwiggyMenuItem {
   imageUrl?: string;
   image?: string;
   category?: string;
-  inStock?: boolean;
-  isAvailable?: boolean;
+  inStock?: boolean | number;
+  isAvailable?: boolean | number;
   deepLink?: string;
   swiggyUrl?: string;
+  // Snake-case shape observed on the live search_menu response
+  menu_item_id?: string | number;
+  restaurant_id?: string | number;
+  restaurant_name?: string;
+  in_stock?: boolean | number;
+  is_veg?: boolean;
+  deep_link?: string;
 }
 
 /** Coerce a possibly-stringified number to a real number. Returns
@@ -298,20 +306,50 @@ function toNumber(v: unknown): number | undefined {
 }
 
 function normalizeMenuItem(raw: RawSwiggyMenuItem): SwiggyMenuItem {
+  // Resolve fields that come in both camelCase (some tools) and snake_case
+  // (search_menu on the live server — the more common shape).
+  const itemId = String(
+    raw.itemId ?? raw.id ?? raw.menu_item_id ?? "unknown"
+  );
+  const restaurantId = String(
+    raw.restaurant?.id ??
+      raw.restaurantId ??
+      raw.restaurant_id ??
+      "unknown"
+  );
+  const restaurantName =
+    raw.restaurantName ?? raw.restaurant?.name ?? raw.restaurant_name ?? "Unknown";
+
+  const availableRaw =
+    raw.isAvailable ?? raw.inStock ?? raw.in_stock ?? true;
+  const isAvailable =
+    typeof availableRaw === "number" ? availableRaw === 1 : Boolean(availableRaw);
+
+  // Swiggy MCP does NOT return a per-item web URL. Build a best-effort
+  // deep-link from the restaurant id: menu page opens in the Swiggy PWA
+  // and honors the query param on the app-store handoff.
+  const explicitUrl = raw.swiggyUrl ?? raw.deepLink ?? raw.deep_link;
+  const constructedUrl =
+    restaurantId !== "unknown" && itemId !== "unknown"
+      ? `https://www.swiggy.com/menu/${restaurantId}?menu_item_id=${itemId}`
+      : restaurantId !== "unknown"
+      ? `https://www.swiggy.com/menu/${restaurantId}`
+      : undefined;
+
   return {
-    itemId: raw.itemId ?? raw.id ?? "unknown",
+    itemId,
     name: raw.name ?? "Unknown item",
     description: raw.description ?? "",
     price: toNumber(raw.finalPrice) ?? toNumber(raw.price) ?? 0,
-    restaurantId: raw.restaurant?.id ?? raw.restaurantId ?? "unknown",
-    restaurantName: raw.restaurantName ?? raw.restaurant?.name ?? "Unknown",
-    isVeg: raw.isVeg ?? (raw.vegFlag === 1 || raw.vegFlag === true),
-    isVegan: raw.isVegan, // undefined when Swiggy doesn't tell us
+    restaurantId,
+    restaurantName,
+    isVeg: raw.isVeg ?? raw.is_veg ?? (raw.vegFlag === 1 || raw.vegFlag === true),
+    isVegan: raw.isVegan,
     rating: toNumber(raw.rating) ?? toNumber(raw.ratings?.average),
     imageUrl: raw.imageUrl ?? raw.image,
     category: raw.category,
-    isAvailable: raw.isAvailable ?? raw.inStock ?? true,
-    swiggyUrl: raw.swiggyUrl ?? raw.deepLink,
+    isAvailable,
+    swiggyUrl: explicitUrl ?? constructedUrl,
   };
 }
 
