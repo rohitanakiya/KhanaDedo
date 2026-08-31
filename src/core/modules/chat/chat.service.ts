@@ -266,10 +266,10 @@ async function recommendFromSwiggy(
     const score = swiggyScore(similarity, item.rating ?? null, item.price, budget);
     return {
       itemName: item.name,
-      price: item.price.toFixed(2),
+      price: (typeof item.price === "number" ? item.price : Number(item.price) || 0).toFixed(2),
       restaurantName: item.restaurantName,
       restaurantId: item.restaurantId,
-      rating: item.rating != null ? item.rating.toFixed(1) : null,
+      rating: typeof item.rating === "number" ? item.rating.toFixed(1) : null,
       isVeg: item.isVeg,
       isVegan: item.isVegan ?? null,
       description: item.description,

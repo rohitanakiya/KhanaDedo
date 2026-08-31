@@ -267,16 +267,16 @@ interface RawSwiggyMenuItem {
   id?: string;
   name?: string;
   description?: string;
-  price?: number;
-  finalPrice?: number;
+  price?: number | string;
+  finalPrice?: number | string;
   restaurantId?: string;
   restaurant?: { id?: string; name?: string };
   restaurantName?: string;
   isVeg?: boolean;
   vegFlag?: number | boolean;
   isVegan?: boolean;
-  rating?: number;
-  ratings?: { average?: number };
+  rating?: number | string;
+  ratings?: { average?: number | string };
   imageUrl?: string;
   image?: string;
   category?: string;
@@ -286,17 +286,28 @@ interface RawSwiggyMenuItem {
   swiggyUrl?: string;
 }
 
+/** Coerce a possibly-stringified number to a real number. Returns
+ *  undefined when the input can't sensibly be parsed. */
+function toNumber(v: unknown): number | undefined {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+}
+
 function normalizeMenuItem(raw: RawSwiggyMenuItem): SwiggyMenuItem {
   return {
     itemId: raw.itemId ?? raw.id ?? "unknown",
     name: raw.name ?? "Unknown item",
     description: raw.description ?? "",
-    price: raw.finalPrice ?? raw.price ?? 0,
+    price: toNumber(raw.finalPrice) ?? toNumber(raw.price) ?? 0,
     restaurantId: raw.restaurant?.id ?? raw.restaurantId ?? "unknown",
     restaurantName: raw.restaurantName ?? raw.restaurant?.name ?? "Unknown",
     isVeg: raw.isVeg ?? (raw.vegFlag === 1 || raw.vegFlag === true),
     isVegan: raw.isVegan, // undefined when Swiggy doesn't tell us
-    rating: raw.rating ?? raw.ratings?.average,
+    rating: toNumber(raw.rating) ?? toNumber(raw.ratings?.average),
     imageUrl: raw.imageUrl ?? raw.image,
     category: raw.category,
     isAvailable: raw.isAvailable ?? raw.inStock ?? true,
