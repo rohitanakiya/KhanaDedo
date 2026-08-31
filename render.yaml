@@ -11,13 +11,13 @@ services:
     plan: free
     region: oregon
     branch: main
-    # --omit=optional skips @xenova/transformers and its 80MB+
-    # onnxruntime native binary, which doesn't fit comfortably in the
-    # free tier's 512MB build RAM. The chat service falls back to
-    # filter-only ranking when the local provider isn't available.
-    # For full semantic search, run on a paid plan or set
-    # EMBEDDINGS_PROVIDER=openai.
-    buildCommand: npm install --omit=optional && npm run build
+    # Install @xenova/transformers so the query-side embeddings work
+    # in production. Without it the chat path falls back to filter-only
+    # ranking with similarity=null. The 80MB ONNX runtime + model fit
+    # within Render's free tier as long as we don't preload additional
+    # models. If the build ever fails on memory, re-add --omit=optional
+    # and rely on filter-only ranking.
+    buildCommand: npm install && npm run build
     startCommand: node dist/server.js
     healthCheckPath: /health
     envVars:

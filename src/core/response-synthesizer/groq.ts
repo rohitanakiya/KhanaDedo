@@ -18,7 +18,7 @@ import { z } from "zod";
 import type { Synthesis, SynthesisInput } from "./types";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL = "llama-3.3-70b-versatile";
+const MODEL = process.env.GROQ_MODEL ?? "llama-3.1-8b-instant";
 const TIMEOUT_MS = 6_000;
 
 const ResponseSchema = z.object({

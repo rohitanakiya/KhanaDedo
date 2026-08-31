@@ -110,7 +110,51 @@ async function callTool<T>(
     );
   }
 
-  const body = (await response.json()) as JsonRpcResponse<unknown>;
+  // Swiggy's MCP can return either JSON or SSE per the MCP spec.
+  // Detect by content-type; fall back to sniffing the body text.
+  const contentType = response.headers.get("content-type") ?? "";
+  const rawText = await response.text();
+
+  let body: JsonRpcResponse<unknown>;
+
+  const looksSse =
+    contentType.includes("text/event-stream") ||
+    /^(event|data|id|retry):/m.test(rawText);
+
+  if (looksSse) {
+    // SSE frames are separated by blank lines; within each frame the
+    // `data:` line(s) hold the payload. For a single tools/call we
+    // expect one data line with a JSON-RPC message. If multiple, take
+    // the LAST (final result comes after any progress notifications).
+    const dataLines = rawText
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trimStart());
+
+    if (dataLines.length === 0) {
+      throw new SwiggyClientError(
+        `SSE response from ${toolName} had no data line. Raw: ${rawText.slice(0, 300)}`
+      );
+    }
+
+    const finalPayload = dataLines[dataLines.length - 1];
+    try {
+      body = JSON.parse(finalPayload) as JsonRpcResponse<unknown>;
+    } catch (err) {
+      throw new SwiggyClientError(
+        `Invalid JSON inside SSE data line for ${toolName}: ${finalPayload.slice(0, 300)}`
+      );
+    }
+  } else {
+    try {
+      body = JSON.parse(rawText) as JsonRpcResponse<unknown>;
+    } catch (err) {
+      throw new SwiggyClientError(
+        `Non-JSON, non-SSE response from ${toolName} (content-type=${contentType}). Raw: ${rawText.slice(0, 300)}`
+      );
+    }
+  }
+
   if ("error" in body) {
     throw new SwiggyClientError(
       `JSON-RPC error from ${toolName}: ${body.error.message}`,
