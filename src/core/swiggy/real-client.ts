@@ -182,7 +182,15 @@ async function callTool<T>(
     result.structuredContent &&
     typeof result.structuredContent === "object"
   ) {
-    toolResponse = result.structuredContent as SwiggyToolResponse<T>;
+    const sc = result.structuredContent as Record<string, unknown>;
+    if ("success" in sc && typeof sc.success === "boolean") {
+      // Swiggy's own {success, data, error} envelope inside structuredContent.
+      toolResponse = sc as unknown as SwiggyToolResponse<T>;
+    } else {
+      // Raw data payload — no envelope. Wrap it so downstream code sees
+      // the expected shape.
+      toolResponse = { success: true, data: sc as T };
+    }
   } else if (
     result &&
     "content" in result &&
@@ -210,8 +218,16 @@ async function callTool<T>(
   }
 
   if (!toolResponse.success) {
+    // Log the full response envelope so we can see what Swiggy is saying
+    // when the terse .error?.message isn't enough.
+    console.warn(
+      `[swiggy-mcp] ${toolName} success=false. Full body: ` +
+        JSON.stringify(body).slice(0, 800)
+    );
     throw new SwiggyClientError(
-      toolResponse.error?.message ?? `${toolName} returned success=false`,
+      toolResponse.error?.message ??
+        toolResponse.message ??
+        `${toolName} returned success=false (no error message from Swiggy — check Render logs for full body)`,
       undefined,
       toolResponse.error?.message
     );
