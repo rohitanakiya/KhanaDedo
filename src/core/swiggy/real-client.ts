@@ -77,6 +77,13 @@ async function callTool<T>(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        // MCP servers can respond with either JSON or Server-Sent Events.
+        // Swiggy's MCP is strict — omitting either media type gets a
+        // "Not Acceptable: Client must accept both application/json and
+        // text/event-stream" 406. For tools/call we always get JSON back
+        // because we're doing single-shot RPCs, not subscribing to a
+        // streaming channel.
+        Accept: "application/json, text/event-stream",
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify(payload),
