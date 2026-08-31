@@ -18,7 +18,11 @@ import { z } from "zod";
 import type { Synthesis, SynthesisInput } from "./types";
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL = process.env.GROQ_MODEL ?? "openai/gpt-oss-20b";
+// Synthesizer uses its own model env because the smaller 20b is unreliable
+// with json_object mode (returns failed_generation ~30% of the time on
+// real Swiggy item names). 120b is still on Groq's dev tier and handles
+// the JSON schema cleanly. Filter extraction stays on GROQ_MODEL (20b).
+const MODEL = process.env.GROQ_SYNTH_MODEL ?? "openai/gpt-oss-120b";
 const TIMEOUT_MS = 6_000;
 
 const ResponseSchema = z.object({
