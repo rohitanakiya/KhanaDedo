@@ -39,6 +39,8 @@ services:
       - key: TOKEN_ENCRYPTION_KEY
         sync: false        # 32 random bytes, base64; encrypts Swiggy access tokens at rest
       # Optional overrides — defaults are baked into the code
+      - key: SWIGGY_PROVIDER
+        sync: false        # "mock" or "real" — default is mock if unset; set to "real" in dashboard when whitelisted
       - key: SWIGGY_REDIRECT_URI
         sync: false        # defaults to the prod URL on Render
       - key: FRONTEND_BASE_URL

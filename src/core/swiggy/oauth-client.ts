@@ -97,7 +97,11 @@ export interface TokenResponse {
   access_token: string;
   token_type: "Bearer";
   expires_in: number; // seconds
-  scope: string;
+  /**
+   * Scope may be omitted by Swiggy's token endpoint. When missing,
+   * the caller should treat it as whatever we requested at /authorize.
+   */
+  scope?: string;
 }
 
 export async function exchangeCodeForToken(args: {

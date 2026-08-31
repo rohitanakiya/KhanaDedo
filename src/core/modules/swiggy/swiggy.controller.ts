@@ -158,13 +158,23 @@ export async function swiggyAuthCallback(req: Request, res: Response) {
     );
   }
 
-  await storeToken({
-    kdUserId: entry.kdUserId,
-    accessToken: tokenResponse.access_token,
-    expiresInSeconds: tokenResponse.expires_in,
-    scope: tokenResponse.scope,
-    swiggyUserId: extractSwiggyUserId(tokenResponse.access_token),
-  });
+  // Swiggy's /auth/token response sometimes omits the scope field —
+  // when that happens, default to what we requested at /authorize.
+  try {
+    await storeToken({
+      kdUserId: entry.kdUserId,
+      accessToken: tokenResponse.access_token,
+      expiresInSeconds: tokenResponse.expires_in,
+      scope: tokenResponse.scope ?? "mcp:tools",
+      swiggyUserId: extractSwiggyUserId(tokenResponse.access_token),
+    });
+  } catch (err) {
+    return renderError(
+      res,
+      500,
+      `Couldn't save your Swiggy session: ${(err as Error).message}`
+    );
+  }
 
   // Bounce back to the frontend with a success indicator the SPA
   // can react to. Use a query param so the frontend doesn't need
