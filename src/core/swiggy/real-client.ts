@@ -250,6 +250,18 @@ async function callTool<T>(
  * For now, missing fields default to undefined / safe values; the
  * orchestrator's filter+rank steps handle that gracefully.
  */
+interface RawSwiggyAddress {
+  id?: string;
+  addressId?: string;
+  addressLine?: string;
+  formattedAddress?: string;
+  addressTag?: string;
+  addressCategory?: string;
+  label?: string;
+  city?: string;
+  phoneNumber?: string;
+}
+
 interface RawSwiggyMenuItem {
   itemId?: string;
   id?: string;
@@ -296,19 +308,35 @@ function normalizeMenuItem(raw: RawSwiggyMenuItem): SwiggyMenuItem {
 
 export class RealSwiggyClient implements SwiggyClient {
   async getAddresses(accessToken: string): Promise<SwiggyAddress[]> {
-    const data = await callTool<Record<string, unknown> | SwiggyAddress[]>(
+    const data = await callTool<Record<string, unknown> | RawSwiggyAddress[]>(
       accessToken,
       "get_addresses",
       {}
     );
-    // Dump the raw payload so we can see the actual address shape.
     console.log(
       `[swiggy-mcp] get_addresses raw data (first 800 chars): ` +
         JSON.stringify(data).slice(0, 800)
     );
-    if (Array.isArray(data)) return data;
-    const asObj = data as Record<string, unknown>;
-    return ((asObj.addresses ?? asObj.data ?? []) as SwiggyAddress[]);
+
+    // Extract the raw address list, wherever Swiggy nested it.
+    let rawList: RawSwiggyAddress[];
+    if (Array.isArray(data)) {
+      rawList = data;
+    } else {
+      const asObj = data as Record<string, unknown>;
+      rawList = (asObj.addresses ?? asObj.data ?? []) as RawSwiggyAddress[];
+    }
+
+    // Normalize Swiggy's actual fields (id, addressLine, addressTag) into
+    // our SwiggyAddress shape. Swiggy does NOT send a standalone city
+    // field — we leave city empty since downstream code uses filters.city
+    // from Groq, not the address city.
+    return rawList.map((raw) => ({
+      addressId: raw.id ?? raw.addressId ?? "",
+      label: raw.addressTag ?? raw.addressCategory ?? raw.label ?? "Address",
+      formattedAddress: raw.addressLine ?? raw.formattedAddress ?? "",
+      city: raw.city ?? "",
+    }));
   }
 
   async searchRestaurants(
