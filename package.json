@@ -11,7 +11,9 @@
     "db:migrate": "ts-node scripts/migrate.ts",
     "db:seed": "ts-node scripts/seed.ts",
     "db:setup": "npm run db:migrate && npm run db:seed && npm run embeddings:generate",
-    "embeddings:generate": "ts-node scripts/generateEmbeddings.ts"
+    "embeddings:generate": "ts-node scripts/generateEmbeddings.ts",
+    "swiggy:dry-run": "ts-node scripts/terminateSwiggy.ts",
+    "swiggy:terminate": "ts-node scripts/terminateSwiggy.ts"
   },
   "keywords": [],
   "author": "",

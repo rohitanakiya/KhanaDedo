@@ -126,29 +126,35 @@ The vision is an AI agent that lets users say *"find me a cheap veg high-protein
 - JWT auth, Zod validation, error middleware, idempotent migrations
 - Companion api-rate-limiter integration (designed and tested; runs locally; can be deployed in front of the backend in gateway mode)
 
-**v2 — in build**
-- LLM-driven filter extraction (Groq + Llama 3.3 70B, free tier) replacing the regex extractor for nuanced queries
-- pgvector + HNSW index replacing JSONB linear scan
-- LLM-synthesized one-line rationales per ranked result
+**v2 — done**
+- LLM-driven filter extraction (Groq, developer tier) replacing the regex extractor for nuanced queries
+- LLM-synthesized one-line rationale per ranked result plus a summary
+- LLM-estimated protein/calories per Swiggy item, marked visibly as estimates
 
-**v3 — Swiggy MCP integration**
+**v3 — Swiggy MCP integration — done**
 - OAuth 2.1 + PKCE per-user authorization against the Swiggy MCP server
 - Live restaurant and menu data replacing the seeded dataset
-- Distance + delivery-time as ranking signals
-- Deep-link to Swiggy app for actual checkout (no payment handling on our side)
+- Deep-link to the Swiggy app for actual checkout (no payment handling on our side)
+- "Powered by Swiggy" + "Re-ranked by KhanaDedo" attribution on every result set
 
-**v4 — distribution**
+**v4 — depth on Swiggy**
+- pgvector + HNSW index replacing JSONB linear scan (embeddings cached per Swiggy item)
+- Distance + delivery-time as ranking signals once we cross-reference the Swiggy address geo
+- Session-aware Swiggy caching so repeat queries are near-instant
 - PWA install for mobile users
-- MCP server exposing the recommender to Claude / ChatGPT / Gemini users from their existing assistants
-- Optional Capacitor wrap for Google Play Store
+
+> **Scope note:** KhanaDedo is a Swiggy-only integration. We are not
+> planning to add other food-delivery, dining, or quick-commerce
+> providers. The goal is depth on one platform, not shallow
+> multi-provider coverage.
 
 ## Limitations (honest)
 
-- Dataset is ~30 hand-seeded menu items — enough to demonstrate ranking, not a real recommender.
-- Filter extraction is regex — reliable for demo queries, brittle on nuanced phrasings (planned: LLM via Groq).
+- Nutrition on Swiggy items is LLM-estimated from dish names (Swiggy MCP doesn't return per-item macros). Displayed with a dashed underline and a `~` label so users know these are estimates, not measurements.
 - Embeddings stored as JSONB scanned linearly — fine at this scale, would migrate to pgvector for production.
 - No automated evaluation of recommendation quality; manual spot-checks only.
 - Cross-region latency: backend on Render Oregon, DB on Supabase Mumbai = ~400ms round-trip per query. Acceptable for demo, would co-locate before launch.
+- @xenova/transformers is not installed on the Render deploy (marked optional to keep the slug small). Semantic similarity is skipped there; ranking uses price + rating + veg-fit signals only. Local dev has full embeddings.
 
 ## Author
 
