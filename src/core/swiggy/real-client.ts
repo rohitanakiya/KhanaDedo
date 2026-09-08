@@ -446,3 +446,80 @@ export class RealSwiggyClient implements SwiggyClient {
     );
   }
 }
+
+/**
+ * Diagnostic: fetch Swiggy MCP's tool catalog. This uses the JSON-RPC
+ * `tools/list` method (as opposed to `tools/call`) so we can see every
+ * tool the server exposes — useful for discovering capabilities Swiggy
+ * hasn't documented (e.g. `add_to_cart`, `get_cart`, `checkout`).
+ * Intended to be called from a temporary /chat/mcp-tools endpoint
+ * during exploration, then removed once we know what's available.
+ */
+export async function listSwiggyMcpTools(accessToken: string): Promise<{
+  tools: Array<{
+    name: string;
+    description?: string;
+    inputSchema?: unknown;
+  }>;
+  raw: unknown;
+}> {
+  const requestId = Date.now();
+  const payload = {
+    jsonrpc: "2.0",
+    method: "tools/list",
+    params: {},
+    id: requestId,
+  };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(FOOD_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const rawText = await response.text();
+  const contentType = response.headers.get("content-type") ?? "";
+
+  let body: { result?: { tools?: unknown[] }; error?: unknown };
+  const looksSse =
+    contentType.includes("text/event-stream") ||
+    /^(event|data|id|retry):/m.test(rawText);
+
+  if (looksSse) {
+    const dataLines = rawText
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trimStart());
+    body = JSON.parse(dataLines[dataLines.length - 1]);
+  } else {
+    body = JSON.parse(rawText);
+  }
+
+  if (body.error) {
+    throw new SwiggyClientError(
+      `tools/list returned error: ${JSON.stringify(body.error)}`
+    );
+  }
+
+  const rawTools = (body.result?.tools ?? []) as Array<{
+    name: string;
+    description?: string;
+    inputSchema?: unknown;
+  }>;
+
+  return { tools: rawTools, raw: body };
+}
+

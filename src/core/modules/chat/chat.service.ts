@@ -436,3 +436,32 @@ export async function listSwiggyAddresses(kdUserId?: string): Promise<{
   }
 }
 
+// ---------- Diagnostic: Swiggy MCP tool catalog ----------
+
+export async function probeSwiggyMcpTools(kdUserId?: string): Promise<{
+  connected: boolean;
+  toolNames: string[];
+  tools: unknown[];
+  error?: string;
+}> {
+  if (!kdUserId) return { connected: false, toolNames: [], tools: [] };
+  const stored = await getToken(kdUserId);
+  if (!stored?.accessToken) return { connected: false, toolNames: [], tools: [] };
+  try {
+    const { listSwiggyMcpTools } = await import("../../swiggy/real-client");
+    const { tools } = await listSwiggyMcpTools(stored.accessToken);
+    return {
+      connected: true,
+      toolNames: tools.map((t) => t.name),
+      tools,
+    };
+  } catch (err) {
+    return {
+      connected: true,
+      toolNames: [],
+      tools: [],
+      error: (err as Error).message,
+    };
+  }
+}
+

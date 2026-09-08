@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { optionalAuthMiddleware } from "../../../middleware/optional-auth.middleware";
 import { validate } from "../../../middleware/validate.middleware";
-import { listAddresses, recommendFromChat } from "./chat.controller";
+import { listAddresses, listMcpTools, recommendFromChat } from "./chat.controller";
 import { recommendSchema } from "./chat.schemas";
 
 const router = Router();
@@ -21,5 +21,8 @@ router.post(
  *  without an active Swiggy connection; the frontend uses that to
  *  hide the picker and show a connect prompt. */
 router.get("/addresses", listAddresses);
+
+/** TEMP diagnostic — remove once the Swiggy MCP tool catalog is known. */
+router.get("/mcp-tools", listMcpTools);
 
 export default router;
