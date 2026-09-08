@@ -161,12 +161,14 @@ async function recommendFromSwiggy(
   filters: ExtractedFilters,
   filterProvider: "groq" | "regex",
   fellBack: boolean | undefined,
-  accessToken: string
+  accessToken: string,
+  requestedAddressId?: string
 ) {
   const client = getSwiggyClient();
 
-  // 1. Resolve user's default delivery address. We pick the first
-  //    returned by get_addresses (sorted by last order date per their docs).
+  // 1. Resolve user's delivery address. Prefer whichever address the
+  //    user explicitly selected in the frontend; fall back to the
+  //    first address Swiggy returns (which they sort by recency).
   const addresses = await client.getAddresses(accessToken);
   if (addresses.length === 0) {
     return {
@@ -178,10 +180,16 @@ async function recommendFromSwiggy(
       filters,
     };
   }
-  const addressId = addresses[0].addressId;
+  const picked =
+    (requestedAddressId &&
+      addresses.find((a) => a.addressId === requestedAddressId)) ||
+    addresses[0];
+  const addressId = picked.addressId;
   console.log(
-    `[chat] using addressId=${addressId} (from ${addresses.length} addresses; first address: ` +
-      JSON.stringify(addresses[0]).slice(0, 300) +
+    `[chat] using addressId=${addressId} (${
+      requestedAddressId === addressId ? "user-selected" : "default"
+    }; ${addresses.length} addresses available; picked: ` +
+      JSON.stringify(picked).slice(0, 300) +
       ")"
   );
 
@@ -348,7 +356,7 @@ async function recommendFromSwiggy(
       ? { summary: synthesis.summary, provider: synthesis.provider, fellBack: synthesis.fellBack }
       : undefined,
     filters,
-    addressLabel: addresses[0].label,
+    addressLabel: picked.label,
     recommendations: withRationales,
   };
 }
@@ -376,7 +384,8 @@ async function embedItemsConcurrently(texts: string[]): Promise<(number[] | null
 
 export async function getRecommendationsFromText(
   input: string,
-  kdUserId?: string
+  kdUserId?: string,
+  requestedAddressId?: string
 ) {
   // 1. Extract structured filters (Groq or regex).
   const { filters, provider: filterProvider, fellBack } = await extractFilters(input);
@@ -392,7 +401,7 @@ export async function getRecommendationsFromText(
 
   if (swiggyToken) {
     try {
-      return await recommendFromSwiggy(input, filters, filterProvider, fellBack, swiggyToken);
+      return await recommendFromSwiggy(input, filters, filterProvider, fellBack, swiggyToken, requestedAddressId);
     } catch (err) {
       // If the Swiggy path fails (network, 401, etc.) we fall back to
       // the seed path so the user still sees something useful, with a
@@ -405,3 +414,25 @@ export async function getRecommendationsFromText(
 
   return recommendFromSeed(input, filters, filterProvider, fellBack);
 }
+
+// ---------- Address listing (for the frontend picker) ----------
+
+export async function listSwiggyAddresses(kdUserId?: string): Promise<{
+  connected: boolean;
+  addresses: import("../../swiggy/types").SwiggyAddress[];
+}> {
+  if (!kdUserId) return { connected: false, addresses: [] };
+  const stored = await getToken(kdUserId);
+  if (!stored?.accessToken) return { connected: false, addresses: [] };
+  try {
+    const client = getSwiggyClient();
+    const addresses = await client.getAddresses(stored.accessToken);
+    return { connected: true, addresses };
+  } catch (err) {
+    // Don't 500 the picker just because Swiggy hiccupped — return empty
+    // and let the frontend show its "couldn't reach Swiggy" fallback.
+    console.warn("listSwiggyAddresses failed:", (err as Error).message);
+    return { connected: true, addresses: [] };
+  }
+}
+

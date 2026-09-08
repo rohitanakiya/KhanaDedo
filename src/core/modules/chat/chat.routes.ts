@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { optionalAuthMiddleware } from "../../../middleware/optional-auth.middleware";
 import { validate } from "../../../middleware/validate.middleware";
-import { recommendFromChat } from "./chat.controller";
+import { listAddresses, recommendFromChat } from "./chat.controller";
 import { recommendSchema } from "./chat.schemas";
 
 const router = Router();
@@ -15,5 +15,11 @@ router.post(
   validate({ body: recommendSchema }),
   recommendFromChat
 );
+
+/** GET /chat/addresses — lists the caller's Swiggy addresses so the
+ *  frontend can offer a picker. Returns { addresses: [] } for callers
+ *  without an active Swiggy connection; the frontend uses that to
+ *  hide the picker and show a connect prompt. */
+router.get("/addresses", listAddresses);
 
 export default router;
