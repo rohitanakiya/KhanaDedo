@@ -2,9 +2,9 @@ import { Request, Response } from "express";
 import {
   getRecommendationsFromText,
   listSwiggyAddresses,
-  probeSwiggyMcpTools,
+  addItemToSwiggyCart,
 } from "./chat.service";
-import type { RecommendInput } from "./chat.schemas";
+import type { RecommendInput, AddToCartInput } from "./chat.schemas";
 
 export async function recommendFromChat(
   req: Request<unknown, unknown, RecommendInput>,
@@ -24,11 +24,19 @@ export async function listAddresses(req: Request, res: Response) {
   res.status(200).json(result);
 }
 
-/** TEMPORARY diagnostic endpoint — returns the full Swiggy MCP tool
- *  catalog for whichever user is calling. Used to discover whether
- *  Swiggy exposes tools like add_to_cart, get_cart, etc. Remove once
- *  the catalog is documented internally. */
-export async function listMcpTools(req: Request, res: Response) {
-  const result = await probeSwiggyMcpTools(req.userId);
-  res.status(200).json(result);
+/** POST /chat/cart — adds one item to the caller's Swiggy cart via
+ *  the update_food_cart MCP tool, then returns the checkout URL for
+ *  the frontend to open. Requires an active Swiggy connection. */
+export async function addToCart(
+  req: Request<unknown, unknown, AddToCartInput>,
+  res: Response
+) {
+  const { restaurantId, menuItemId, addressId, restaurantName } = req.body;
+  const result = await addItemToSwiggyCart(req.userId, {
+    restaurantId,
+    menuItemId,
+    addressId,
+    restaurantName,
+  });
+  res.status(result.ok ? 200 : 400).json(result);
 }

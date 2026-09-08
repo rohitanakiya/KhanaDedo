@@ -438,4 +438,9 @@ export class MockSwiggyClient implements SwiggyClient {
       hasMore: false,
     };
   }
+
+  /** Mock cart-add: always succeeds. Real MCP happens on the real client. */
+  async addToCart(): Promise<{ ok: true; message: string }> {
+    return { ok: true, message: "Mock cart updated." };
+  }
 }

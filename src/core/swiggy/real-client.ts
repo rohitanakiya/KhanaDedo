@@ -12,7 +12,7 @@
  * live data to verify against.
  */
 
-import { SwiggyClient, SwiggyClientError, SearchMenuArgs, SearchRestaurantsArgs, GetRestaurantMenuArgs } from "./mcp-client";
+import { SwiggyClient, SwiggyClientError, SearchMenuArgs, SearchRestaurantsArgs, GetRestaurantMenuArgs, AddToCartArgs, AddToCartResult } from "./mcp-client";
 import type {
   SwiggyAddress,
   SwiggyMenuItem,
@@ -445,81 +445,54 @@ export class RealSwiggyClient implements SwiggyClient {
       "get_restaurant_menu is not yet wired in RealSwiggyClient — pending live response sample to normalize the shape"
     );
   }
-}
 
-/**
- * Diagnostic: fetch Swiggy MCP's tool catalog. This uses the JSON-RPC
- * `tools/list` method (as opposed to `tools/call`) so we can see every
- * tool the server exposes — useful for discovering capabilities Swiggy
- * hasn't documented (e.g. `add_to_cart`, `get_cart`, `checkout`).
- * Intended to be called from a temporary /chat/mcp-tools endpoint
- * during exploration, then removed once we know what's available.
- */
-export async function listSwiggyMcpTools(accessToken: string): Promise<{
-  tools: Array<{
-    name: string;
-    description?: string;
-    inputSchema?: unknown;
-  }>;
-  raw: unknown;
-}> {
-  const requestId = Date.now();
-  const payload = {
-    jsonrpc: "2.0",
-    method: "tools/list",
-    params: {},
-    id: requestId,
-  };
+  /** Add an item to the user's Swiggy cart via `update_food_cart`.
+   *  MVP: we send menu_item_id + quantity only. Items with required
+   *  variants/addons will fail here — the caller catches that and
+   *  falls back to opening the menu page so the user can customize. */
+  async addToCart(
+    accessToken: string,
+    args: AddToCartArgs
+  ): Promise<AddToCartResult> {
+    const mcpArgs: Record<string, unknown> = {
+      restaurantId: args.restaurantId,
+      addressId: args.addressId,
+      cartItems: args.cartItems.map((it) => ({
+        menu_item_id: it.menu_item_id,
+        quantity: it.quantity,
+        ...(it.variants ? { variants: it.variants } : {}),
+        ...(it.variantsV2 ? { variantsV2: it.variantsV2 } : {}),
+        ...(it.addons ? { addons: it.addons } : {}),
+      })),
+    };
+    if (args.restaurantName) mcpArgs.restaurantName = args.restaurantName;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-  let response: Response;
-  try {
-    response = await fetch(FOOD_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json, text/event-stream",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timer);
-  }
-
-  const rawText = await response.text();
-  const contentType = response.headers.get("content-type") ?? "";
-
-  let body: { result?: { tools?: unknown[] }; error?: unknown };
-  const looksSse =
-    contentType.includes("text/event-stream") ||
-    /^(event|data|id|retry):/m.test(rawText);
-
-  if (looksSse) {
-    const dataLines = rawText
-      .split(/\r?\n/)
-      .filter((line) => line.startsWith("data:"))
-      .map((line) => line.slice(5).trimStart());
-    body = JSON.parse(dataLines[dataLines.length - 1]);
-  } else {
-    body = JSON.parse(rawText);
-  }
-
-  if (body.error) {
-    throw new SwiggyClientError(
-      `tools/list returned error: ${JSON.stringify(body.error)}`
+    console.log(
+      `[swiggy-mcp] calling update_food_cart with args: ` +
+        JSON.stringify(mcpArgs).slice(0, 400)
     );
+
+    try {
+      const raw = await callTool<Record<string, unknown>>(
+        accessToken,
+        "update_food_cart",
+        mcpArgs
+      );
+      const rawAsAny = raw as { message?: string; error?: { message?: string } };
+      // Swiggy returns { success, data, message } — the wrapper in
+      // callTool has already unwrapped for us so we're on the inner data.
+      return {
+        ok: true,
+        message: rawAsAny.message ?? "Item added to your Swiggy cart.",
+      };
+    } catch (err) {
+      const msg = (err as Error).message;
+      console.warn(`[swiggy-mcp] update_food_cart failed: ${msg}`);
+      return {
+        ok: false,
+        errorMessage: msg,
+      };
+    }
   }
-
-  const rawTools = (body.result?.tools ?? []) as Array<{
-    name: string;
-    description?: string;
-    inputSchema?: unknown;
-  }>;
-
-  return { tools: rawTools, raw: body };
 }
 

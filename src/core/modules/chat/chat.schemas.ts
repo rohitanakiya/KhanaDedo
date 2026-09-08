@@ -13,3 +13,13 @@ export const recommendSchema = z.object({
 });
 
 export type RecommendInput = z.infer<typeof recommendSchema>;
+
+/** POST /chat/cart body — one-tap add-to-Swiggy-cart from a card. */
+export const addToCartSchema = z.object({
+  restaurantId: z.string().trim().min(1).max(64),
+  menuItemId: z.string().trim().min(1).max(64),
+  addressId: z.string().trim().min(1).max(100).optional(),
+  restaurantName: z.string().trim().max(200).optional(),
+});
+
+export type AddToCartInput = z.infer<typeof addToCartSchema>;

@@ -44,6 +44,35 @@ export interface GetRestaurantMenuArgs {
   pageSize?: number;
 }
 
+export interface AddToCartArgs {
+  /** Which of the user's Swiggy addresses to attach the cart to. */
+  addressId: string;
+  /** Restaurant the item belongs to. */
+  restaurantId: string;
+  restaurantName?: string;
+  /** Items to add. For MVP we send one at a time. */
+  cartItems: Array<{
+    menu_item_id: string;
+    quantity: number;
+    /** Not yet plumbed through from search_menu — treated as best-effort. */
+    variants?: unknown[];
+    variantsV2?: unknown[];
+    addons?: unknown[];
+  }>;
+}
+
+/** Raw response from update_food_cart. We forward the salient bits to
+ *  the frontend so it can decide whether to open Swiggy checkout or
+ *  tell the user the item needs customization. */
+export interface AddToCartResult {
+  ok: boolean;
+  /** Message from Swiggy (success confirmation or error string). */
+  message?: string;
+  /** Present when Swiggy returned an error — usually about missing
+   *  required variants/addons that the user has to pick themselves. */
+  errorMessage?: string;
+}
+
 export interface SwiggyClient {
   /** No args — Swiggy infers user from the bearer token. */
   getAddresses(accessToken: string): Promise<SwiggyAddress[]>;
@@ -62,6 +91,11 @@ export interface SwiggyClient {
     accessToken: string,
     args: GetRestaurantMenuArgs
   ): Promise<SwiggyRestaurantMenu>;
+
+  addToCart(
+    accessToken: string,
+    args: AddToCartArgs
+  ): Promise<AddToCartResult>;
 }
 
 export class SwiggyClientError extends Error {

@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { optionalAuthMiddleware } from "../../../middleware/optional-auth.middleware";
 import { validate } from "../../../middleware/validate.middleware";
-import { listAddresses, listMcpTools, recommendFromChat } from "./chat.controller";
-import { recommendSchema } from "./chat.schemas";
+import { addToCart, listAddresses, recommendFromChat } from "./chat.controller";
+import { addToCartSchema, recommendSchema } from "./chat.schemas";
 
 const router = Router();
 
@@ -22,7 +22,11 @@ router.post(
  *  hide the picker and show a connect prompt. */
 router.get("/addresses", listAddresses);
 
-/** TEMP diagnostic — remove once the Swiggy MCP tool catalog is known. */
-router.get("/mcp-tools", listMcpTools);
+/** POST /chat/cart — add a single item to the caller's Swiggy cart. */
+router.post(
+  "/cart",
+  validate({ body: addToCartSchema }),
+  addToCart
+);
 
 export default router;

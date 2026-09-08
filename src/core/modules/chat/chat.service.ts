@@ -292,6 +292,7 @@ async function recommendFromSwiggy(
     const score = swiggyScore(similarity, item.rating ?? null, item.price, budget);
     return {
       itemName: item.name,
+      itemId: item.itemId,
       price: (typeof item.price === "number" ? item.price : Number(item.price) || 0).toFixed(2),
       restaurantName: item.restaurantName,
       restaurantId: item.restaurantId,
@@ -436,32 +437,88 @@ export async function listSwiggyAddresses(kdUserId?: string): Promise<{
   }
 }
 
-// ---------- Diagnostic: Swiggy MCP tool catalog ----------
+// ---------- Cart: add one item + return Swiggy checkout URL ----------
 
-export async function probeSwiggyMcpTools(kdUserId?: string): Promise<{
-  connected: boolean;
-  toolNames: string[];
-  tools: unknown[];
-  error?: string;
-}> {
-  if (!kdUserId) return { connected: false, toolNames: [], tools: [] };
+export interface AddToCartArgs {
+  restaurantId: string;
+  menuItemId: string;
+  addressId?: string;
+  restaurantName?: string;
+}
+
+export interface AddToCartResponse {
+  ok: boolean;
+  /** Swiggy checkout URL the frontend should open when ok=true. */
+  checkoutUrl?: string;
+  /** Human-readable message from Swiggy (success or failure reason). */
+  message?: string;
+  /** When add-to-cart failed, a menu-page URL the frontend can fall
+   *  back to opening so the user can customize the item themselves. */
+  fallbackMenuUrl?: string;
+  /** True when the caller has no Swiggy connection — frontend should
+   *  prompt them to connect rather than showing a raw error. */
+  needsSwiggy?: boolean;
+}
+
+export async function addItemToSwiggyCart(
+  kdUserId: string | undefined,
+  args: AddToCartArgs
+): Promise<AddToCartResponse> {
+  if (!kdUserId) {
+    return { ok: false, needsSwiggy: true, message: "Sign in to add to cart." };
+  }
   const stored = await getToken(kdUserId);
-  if (!stored?.accessToken) return { connected: false, toolNames: [], tools: [] };
-  try {
-    const { listSwiggyMcpTools } = await import("../../swiggy/real-client");
-    const { tools } = await listSwiggyMcpTools(stored.accessToken);
+  if (!stored?.accessToken) {
     return {
-      connected: true,
-      toolNames: tools.map((t) => t.name),
-      tools,
-    };
-  } catch (err) {
-    return {
-      connected: true,
-      toolNames: [],
-      tools: [],
-      error: (err as Error).message,
+      ok: false,
+      needsSwiggy: true,
+      message: "Connect Swiggy to add items to your cart.",
     };
   }
+
+  const client = getSwiggyClient();
+
+  // Resolve the address to attach the cart to. Prefer user-selected;
+  // fall back to first address returned by Swiggy.
+  const addresses = await client.getAddresses(stored.accessToken);
+  if (addresses.length === 0) {
+    return {
+      ok: false,
+      message:
+        "No saved delivery addresses on your Swiggy account. Add one in the Swiggy app and try again.",
+    };
+  }
+  const picked =
+    (args.addressId && addresses.find((a) => a.addressId === args.addressId)) ||
+    addresses[0];
+
+  const result = await client.addToCart(stored.accessToken, {
+    addressId: picked.addressId,
+    restaurantId: args.restaurantId,
+    restaurantName: args.restaurantName,
+    cartItems: [{ menu_item_id: args.menuItemId, quantity: 1 }],
+  });
+
+  if (result.ok) {
+    return {
+      ok: true,
+      message: result.message,
+      // Swiggy web's cart/checkout page. Opens whatever is in the user's
+      // Swiggy session — since we just added an item via their token,
+      // it will show up here (provided they're logged into Swiggy in
+      // this browser too — most users are).
+      checkoutUrl: "https://www.swiggy.com/checkout",
+    };
+  }
+
+  // Fallback: item probably has required variants/addons the user must
+  // pick. Send them to the restaurant menu page pre-scrolled to the item.
+  return {
+    ok: false,
+    message:
+      result.errorMessage ??
+      "Couldn't add automatically — this item needs customization.",
+    fallbackMenuUrl: `https://www.swiggy.com/menu/${args.restaurantId}?menu_item_id=${args.menuItemId}`,
+  };
 }
 
