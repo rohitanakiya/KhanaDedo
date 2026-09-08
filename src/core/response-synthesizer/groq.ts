@@ -127,10 +127,11 @@ ${formatItemsForPrompt(input)}`;
         response_format: { type: "json_object" },
         temperature: 0.1,
         // Real Swiggy item names can be 60+ chars ("SUPERYOU High Protein
-        // Thincrust All Veg Pizza with Crumbled Feta") — top-10 with
-        // rationales blows past 700 tokens. Bumped so gpt-oss-20b actually
-        // finishes valid JSON instead of returning `failed_generation`.
-        max_tokens: 1500,
+        // Thincrust All Veg Pizza with Crumbled Feta"), and we now rank
+        // up to 20 items (was 10) — rationales + nutrition estimates
+        // blow past 1500. Bumped to 3000 so gpt-oss-120b finishes valid
+        // JSON instead of returning `failed_generation`.
+        max_tokens: 3000,
       }),
       signal: controller.signal,
     });

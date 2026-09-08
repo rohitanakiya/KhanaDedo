@@ -100,7 +100,7 @@ async function recommendFromSeed(
     };
   });
 
-  const ranked = scored.sort((a, b) => b.score - a.score).slice(0, 10);
+  const ranked = scored.sort((a, b) => b.score - a.score).slice(0, 20);
 
   // Generation (G in RAG) — turn the ranked list into a narrative.
   const synthesis = await synthesize({
@@ -198,11 +198,17 @@ async function recommendFromSwiggy(
   //    their docs. If quality is poor, we'll escalate to having Groq
   //    extract a cuisine term as a separate field.
   const vegOnly = filters.veg === true || filters.vegan === true;
-  const { items: rawItems } = await client.searchMenu(accessToken, {
-    addressId,
-    query: input,
-    vegOnly,
-  });
+  // Swiggy caps search_menu at 10 items per page. Fetch two pages in
+  // parallel (offset=0 and offset=10) so we can rank a 20-item pool
+  // instead of just 10. If the query is niche and page 2 is empty or
+  // errors, we still get whatever page 1 returned.
+  const [page1, page2] = await Promise.all([
+    client.searchMenu(accessToken, { addressId, query: input, vegOnly, offset: 0 }),
+    client
+      .searchMenu(accessToken, { addressId, query: input, vegOnly, offset: 10 })
+      .catch(() => ({ items: [] as SwiggyMenuItem[], nextOffset: null })),
+  ]);
+  const rawItems: SwiggyMenuItem[] = [...page1.items, ...page2.items];
 
   // Debug: dump the first raw item to see actual Swiggy response shape.
   // Removes the guessing about field names — we can adjust the normalizer
@@ -307,7 +313,7 @@ async function recommendFromSwiggy(
     };
   });
 
-  const ranked = scored.sort((a, b) => b.score - a.score).slice(0, 10);
+  const ranked = scored.sort((a, b) => b.score - a.score).slice(0, 20);
 
   // Generation step for the Swiggy path. Same shape as the seed path.
   const synthesis = await synthesize({
