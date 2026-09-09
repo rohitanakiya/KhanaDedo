@@ -25,12 +25,13 @@ const EMPTY: Synthesis = {
   summary: "",
   rationales: [],
   nutrition: [],
+  intentFit: [],
   provider: "none",
 };
 
 export async function synthesize(input: SynthesisInput): Promise<Synthesis> {
   if (input.items.length === 0) {
-    return { ...EMPTY, rationales: [], nutrition: [] };
+    return { ...EMPTY, rationales: [], nutrition: [], intentFit: [] };
   }
 
   const provider = chosenProvider();
@@ -39,6 +40,7 @@ export async function synthesize(input: SynthesisInput): Promise<Synthesis> {
       summary: "",
       rationales: new Array(input.items.length).fill(""),
       nutrition: new Array(input.items.length).fill({}),
+      intentFit: new Array(input.items.length).fill({ score: 5 }),
       provider: "none",
     };
   }
@@ -53,6 +55,7 @@ export async function synthesize(input: SynthesisInput): Promise<Synthesis> {
       summary: "",
       rationales: new Array(input.items.length).fill(""),
       nutrition: new Array(input.items.length).fill({}),
+      intentFit: new Array(input.items.length).fill({ score: 5 }),
       provider: "none",
       fellBack: true,
     };

@@ -35,6 +35,15 @@ export interface EstimatedNutrition {
   caloriesKcal?: number;
 }
 
+export interface IntentFit {
+  /** 0-10 score for how well this item matches the user's stated
+   *  intent (e.g. for "light food", a salad scores 9 and a
+   *  cheese pizza scores 2). Used as the primary ranking signal when
+   *  present — replaces cosine similarity (which is unavailable in
+   *  prod without embeddings) and rating (which is a bad tiebreak). */
+  score: number;
+}
+
 export interface Synthesis {
   /** One-sentence framing of the whole result set (<= ~200 chars). */
   summary: string;
@@ -52,6 +61,12 @@ export interface Synthesis {
    * them as such in the UI.
    */
   nutrition: EstimatedNutrition[];
+  /**
+   * Same length + order as items. Per-item score 0-10 for how well
+   * the item matches the user's stated intent. When present, the
+   * chat service uses this as the primary ranking signal instead of
+   * price/rating. */
+  intentFit: IntentFit[];
   /** Which provider produced this — for UI attribution + debugging. */
   provider: "groq" | "none";
   /** True when we tried Groq and fell back to no synthesis. */

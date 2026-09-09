@@ -38,6 +38,8 @@ const ResponseSchema = z.object({
       })
     )
     .default([]),
+  // Per-item intent-fit score 0-10. Same length/order as items.
+  intentFit: z.array(z.number().min(0).max(10)).default([]),
 });
 
 const SYSTEM_PROMPT = `You explain ranked food recommendations to the user in a warm, decisive voice.
@@ -47,6 +49,7 @@ Output ONLY a JSON object with:
 - "summary": one sentence (max ~200 chars) that frames the result set for this specific query. No preamble like "Here are..."; jump straight to the substance. Warm but not saccharine.
 - "rationales": array of one-line strings, SAME LENGTH and SAME ORDER as the input items. Each is <= 80 chars and says WHY this item earned its rank vs the others (cheaper, more protein, better rating, closest semantic match, vegan-safe, etc). Never repeat the item's name — the UI already shows it.
 - "nutrition": array of {proteinG, caloriesKcal} objects, SAME LENGTH and SAME ORDER as items. For each item, estimate grams of protein and kcal per typical serving from the dish name (e.g. "Paneer Tikka Bowl" ≈ 22g / 480kcal, "Margherita Pizza" whole ≈ 30g / 800kcal, "Chicken Biryani" ≈ 35g / 720kcal). If an item has proteinG or caloriesKcal already listed in its context, echo those exact numbers. If a dish is truly ambiguous (e.g. just "combo"), return null for that field — do NOT fabricate.
+- "intentFit": array of numbers 0-10, SAME LENGTH and SAME ORDER as items. For each item, score how well it matches the user's specific query intent — NOT how good the item is in general. Examples: for query "light food", a salad = 9, a grilled sandwich = 7, a butter chicken = 2. For "high protein", eggs/paneer/chicken items = 8-10, a plain dosa = 3. For "quick snack", a wrap = 8, a full biryani platter = 4. For "biryani", every biryani = 9-10, non-biryani items = 2-4. Be discerning — spread scores across the 0-10 range so ranking is meaningful. Don't give everything a 7 or 8.
 
 If an item is a poor match despite ranking (e.g. cheapest but low protein when user asked for high-protein), be honest about the tradeoff in its rationale.
 
@@ -96,6 +99,7 @@ export async function synthesizeWithGroq(
       summary: "No items matched those constraints.",
       rationales: [],
       nutrition: [],
+      intentFit: [],
       provider: "groq",
     };
   }
@@ -192,10 +196,18 @@ ${formatItemsForPrompt(input)}`;
     };
   });
 
+  // Reconcile intentFit length like rationales. Missing values default to
+  // 5 (neutral) so ranking still produces a reasonable order.
+  const rawIntentFit = validated.data.intentFit;
+  const intentFit = input.items.map((_, i) => ({
+    score: typeof rawIntentFit[i] === "number" ? rawIntentFit[i] : 5,
+  }));
+
   return {
     summary: validated.data.summary,
     rationales,
     nutrition,
+    intentFit,
     provider: "groq",
   };
 }

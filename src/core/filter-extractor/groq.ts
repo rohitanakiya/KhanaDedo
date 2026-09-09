@@ -26,9 +26,10 @@ const ResponseSchema = z.object({
   vegan: z.boolean().nullish(),
   maxPrice: z.number().nullish(),
   minProtein: z.number().nullish(),
+  swiggyQuery: z.string().nullish(),
 });
 
-const SYSTEM_PROMPT = `You extract structured food-search filters from a user's natural-language query.
+const SYSTEM_PROMPT = `You extract structured food-search filters from a user's natural-language query AND translate vague intent into a concrete search term.
 
 Output ONLY a JSON object with these optional fields:
 - "city": one of "bangalore", "mumbai", "delhi", "pune", "hyderabad", "chennai", "kolkata". If the user says "bengaluru", return "bangalore".
@@ -36,24 +37,42 @@ Output ONLY a JSON object with these optional fields:
 - "vegan": true ONLY if user explicitly wants vegan (no animal products at all). Synonyms: "plant-only", "dairy-free vegetarian", "fully plant-based".
 - "maxPrice": maximum price in INR. "cheap"/"affordable"/"budget" => 300. "under N"/"below N" => N. Parse spelled-out numbers like "five hundred" => 500.
 - "minProtein": minimum protein in grams. "high protein"/"protein-rich" => 20. "at least Ng protein" => N.
+- "swiggyQuery": REQUIRED unless the user already named a concrete dish/cuisine. A short (1-3 word) keyword-friendly term that Swiggy's keyword search can match against dish names. Never a full sentence, never adjectives-only.
 
 HARD RULE — do NOT infer fields from context, only from words the user actually used:
 - If the user did NOT use the word "veg", "vegetarian", "plant-based", "vegan", "non-veg", or name a specific meat/fish/egg, OMIT the "veg" field entirely. Do not guess based on meal type, time of day, or cultural assumptions about Indian food.
-- Same rule for every other field: omit unless the user's words clearly imply it.
+- Same rule for every other field (except swiggyQuery): omit unless the user's words clearly imply it.
 
-Examples (note: empty objects are common and CORRECT — they mean "no structured filters; rank semantically"):
+swiggyQuery translation guide (this field IS inferential — its job is to bridge intent to Swiggy's keyword search):
+- "light food" -> "salad"
+- "something light" -> "soup"
+- "comfort food" -> "biryani"
+- "healthy lunch" -> "bowl"
+- "quick snack" -> "sandwich"
+- "something spicy" -> "chicken curry" (if user asked veg, use "paneer" instead)
+- "dinner for two" -> "biryani"
+- "sweet craving" -> "gulab jamun"
+- "protein bowl" -> "bowl"
+- "breakfast" -> "poha" (or "idli"/"paratha" — pick one)
+- "midnight snack" -> "pizza"
+- OMIT swiggyQuery when the user already named a concrete dish or cuisine: "biryani", "chicken tikka masala", "margherita pizza", "south indian" all pass through as-is.
+
+Examples:
 "cheap high protein veg in bangalore" -> {"city":"bangalore","veg":true,"maxPrice":300,"minProtein":20}
-"something vegan and cheap" -> {"veg":true,"vegan":true,"maxPrice":300}
-"plant-only protein-rich meal" -> {"veg":true,"vegan":true,"minProtein":20}
-"vegetarian dinner with paneer" -> {"veg":true}
-"comfort food" -> {}
-"light but filling breakfast" -> {}
-"something tasty" -> {}
-"dinner for two" -> {}
-"healthy lunch options" -> {}
-"spicy non-veg dinner under 400" -> {"veg":false,"maxPrice":400}
-"chicken dish under five hundred rupees" -> {"veg":false,"maxPrice":500}
-"protein bowl" -> {"minProtein":20}
+"something vegan and cheap" -> {"veg":true,"vegan":true,"maxPrice":300,"swiggyQuery":"salad"}
+"plant-only protein-rich meal" -> {"veg":true,"vegan":true,"minProtein":20,"swiggyQuery":"bowl"}
+"vegetarian dinner with paneer" -> {"veg":true,"swiggyQuery":"paneer"}
+"comfort food" -> {"swiggyQuery":"biryani"}
+"light but filling breakfast" -> {"swiggyQuery":"poha"}
+"something tasty" -> {"swiggyQuery":"biryani"}
+"dinner for two" -> {"swiggyQuery":"biryani"}
+"healthy lunch options" -> {"swiggyQuery":"bowl"}
+"light food" -> {"swiggyQuery":"salad"}
+"spicy non-veg dinner under 400" -> {"veg":false,"maxPrice":400,"swiggyQuery":"chicken curry"}
+"chicken dish under five hundred rupees" -> {"veg":false,"maxPrice":500,"swiggyQuery":"chicken"}
+"protein bowl" -> {"minProtein":20,"swiggyQuery":"bowl"}
+"biryani" -> {}
+"paneer tikka" -> {}
 
 Respond with the JSON object only. No prose, no markdown, no code fences.`;
 
@@ -89,7 +108,8 @@ export async function extractWithGroq(input: string): Promise<ExtractedFilters> 
         ],
         response_format: { type: "json_object" },
         temperature: 0.1,
-        max_tokens: 200,
+        // Bumped from 200 to accommodate the extra swiggyQuery field
+        max_tokens: 300,
       }),
       signal: controller.signal,
     });
@@ -142,6 +162,12 @@ export async function extractWithGroq(input: string): Promise<ExtractedFilters> 
   }
   if (typeof validated.data.maxPrice === "number") out.maxPrice = validated.data.maxPrice;
   if (typeof validated.data.minProtein === "number") out.minProtein = validated.data.minProtein;
+  if (typeof validated.data.swiggyQuery === "string" && validated.data.swiggyQuery.trim()) {
+    // Trim + collapse whitespace. Skip absurdly long values (LLM sometimes
+    // hallucinates a full sentence despite the "1-3 word" instruction).
+    const q = validated.data.swiggyQuery.trim().replace(/\s+/g, " ");
+    if (q.length > 0 && q.length <= 60) out.swiggyQuery = q;
+  }
 
   return out;
 }

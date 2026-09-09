@@ -138,7 +138,19 @@ async function recommendFromSeed(
       calories: finalCalories,
       nutritionEstimated: nutritionEstimated || undefined,
       rationale: synthesis.rationales[i] || undefined,
+      intentFit: synthesis.intentFit[i]?.score ?? 5,
     };
+  });
+
+  // Re-rank by Groq's intent-fit score. This is the whole point of the
+  // synthesizer's intentFit output: cosine-similarity is unavailable
+  // in prod (embeddings disabled), so Groq's understanding of "does
+  // this item actually match what the user asked for?" is our best
+  // signal. Fall back to the pre-synthesis score for ties.
+  withRationales.sort((a, b) => {
+    const fitDiff = (b.intentFit ?? 5) - (a.intentFit ?? 5);
+    if (Math.abs(fitDiff) > 0.01) return fitDiff;
+    return (b as { score: number }).score - (a as { score: number }).score;
   });
 
   return {
@@ -198,14 +210,23 @@ async function recommendFromSwiggy(
   //    their docs. If quality is poor, we'll escalate to having Groq
   //    extract a cuisine term as a separate field.
   const vegOnly = filters.veg === true || filters.vegan === true;
+  // Prefer Groq's Swiggy-friendly query translation when present.
+  // Vague inputs like "light food" get translated to "salad" etc.
+  // so Swiggy's keyword search actually returns something relevant.
+  const swiggyQuery = filters.swiggyQuery ?? input;
+  if (filters.swiggyQuery) {
+    console.log(
+      `[chat] translated query "${input}" -> "${swiggyQuery}" for Swiggy search`
+    );
+  }
   // Swiggy caps search_menu at 10 items per page. Fetch two pages in
   // parallel (offset=0 and offset=10) so we can rank a 20-item pool
   // instead of just 10. If the query is niche and page 2 is empty or
   // errors, we still get whatever page 1 returned.
   const [page1, page2] = await Promise.all([
-    client.searchMenu(accessToken, { addressId, query: input, vegOnly, offset: 0 }),
+    client.searchMenu(accessToken, { addressId, query: swiggyQuery, vegOnly, offset: 0 }),
     client
-      .searchMenu(accessToken, { addressId, query: input, vegOnly, offset: 10 })
+      .searchMenu(accessToken, { addressId, query: swiggyQuery, vegOnly, offset: 10 })
       .catch(() => ({ items: [] as SwiggyMenuItem[], nextOffset: null })),
   ]);
   const rawItems: SwiggyMenuItem[] = [...page1.items, ...page2.items];
@@ -351,7 +372,19 @@ async function recommendFromSwiggy(
       calories: finalCalories,
       nutritionEstimated: nutritionEstimated || undefined,
       rationale: synthesis.rationales[i] || undefined,
+      intentFit: synthesis.intentFit[i]?.score ?? 5,
     };
+  });
+
+  // Re-rank by Groq's intent-fit score. This is the whole point of the
+  // synthesizer's intentFit output: cosine-similarity is unavailable
+  // in prod (embeddings disabled), so Groq's understanding of "does
+  // this item actually match what the user asked for?" is our best
+  // signal. Fall back to the pre-synthesis score for ties.
+  withRationales.sort((a, b) => {
+    const fitDiff = (b.intentFit ?? 5) - (a.intentFit ?? 5);
+    if (Math.abs(fitDiff) > 0.01) return fitDiff;
+    return (b as { score: number }).score - (a as { score: number }).score;
   });
 
   return {
