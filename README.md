@@ -4,13 +4,15 @@
 > **API:** https://ai-food-backend-ib8i.onrender.com  ·  [`/health`](https://ai-food-backend-ib8i.onrender.com/health)
 > **Frontend repo:** [KhanaDedo-frontend](https://github.com/rohitanakiya/KhanaDedo-frontend)  ·  **Rate-limiter:** [api-rate-limiter](https://github.com/rohitanakiya/api-rate-limiter)
 >
-> _Hosted on Render's free tier (~30s cold start after idle). Postgres on Supabase. Local embeddings via Transformers.js — zero paid AI APIs._
+> _Hosted on Render's free tier (~30s cold start after idle). Postgres on Supabase. Groq LLM for intent extraction, re-ranking, and summarization._
 
 ## What it does
 
-Takes a natural-language query like *"cheap high-protein veg meal in Bangalore"* and returns ranked food recommendations. The interesting layer is the ranker: it combines semantic vector similarity with structured constraints extracted from the query (price, dietary flags, protein, city) and a hybrid score that mixes similarity, nutrition signals, and restaurant rating.
+Takes a natural-language query like *"cheap high-protein veg meal in Bangalore"* or *"something light for breakfast"* and returns a ranked list of food items from the user's real Swiggy catalog, one tap away from checkout.
 
-The eventual product, currently in build-out, is an AI agent that does the same thing over live Swiggy data (via the [Swiggy MCP](https://mcp.swiggy.com/builders) program) and hands off to Swiggy's checkout — so the user types what they want, the agent ranks Swiggy's real catalog against those constraints, and the user clicks one button to order. See **Roadmap** below.
+The interesting layer is the ranker: an LLM extracts structured constraints from the query (price, dietary flags, protein, city) *and* translates vague intent into a concrete Swiggy search term (`"light food"` → `"salad"`). Swiggy's `search_menu` returns candidates; the LLM then scores each item 0–10 for intent-fit and we re-rank on that score, with LLM-generated one-line rationales per card explaining *why* each item earned its rank.
+
+The whole pipeline talks to Swiggy over the [Swiggy MCP](https://mcp.swiggy.com/builders) via OAuth 2.1 + PKCE — every request is scoped to the individual user's Swiggy session, tokens are AES-256-GCM encrypted at rest. One-tap "Add to Swiggy cart" writes to the user's real Swiggy cart via `update_food_cart`; checkout happens on Swiggy's own surface.
 
 ## Architecture (today)
 
@@ -20,39 +22,52 @@ User (browser)
       v   HTTPS
 React frontend (Vercel)
       |
-      v   POST /chat/recommend
+      v   POST /chat/recommend  { text, addressId? }
 Node + Express backend (Render Web Service)
       |
       +-- Zod request validation
-      +-- Rule-based intent extraction (city, veg, max price, min protein)
-      +-- Local 384-dim embeddings via @xenova/transformers
-      +-- Hybrid scoring (similarity + protein + rating)
+      +-- Groq extractor: structured filters + Swiggy-friendly search term
+      +-- Swiggy MCP client (OAuth 2.1 + PKCE, JSON-RPC 2.0 over HTTP)
+      |     - get_addresses     (resolve delivery address)
+      |     - search_menu × 2   (parallel pagination for 20 items)
+      |     - update_food_cart  (one-tap add-to-cart)
+      +-- Groq synthesizer: intentFit 0-10 + rationale + nutrition estimate per item
+      +-- Final re-rank by intentFit
       |
       v   parameterized SQL
-PostgreSQL (Supabase, with pgvector available)
+PostgreSQL (Supabase, RLS on Swiggy tokens)
 ```
 
-Full architecture write-up including the planned target state with Swiggy MCP: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+Full architecture write-up: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
 ## Tech stack
 
 - **Backend:** Node.js 22, TypeScript (strict), Express 5
-- **Database:** PostgreSQL 16 on Supabase (free tier, includes pgvector)
-- **Embeddings:** [`@xenova/transformers`](https://github.com/xenova/transformers.js) — `Xenova/all-MiniLM-L6-v2` (384-dim), runs in-process, zero external API cost
+- **Database:** PostgreSQL 16 on Supabase (free tier), Row-Level Security on Swiggy token table
+- **LLM:** Groq API — `openai/gpt-oss-20b` for filter extraction, `openai/gpt-oss-120b` for synthesis / re-ranking
+- **Swiggy:** MCP client — JSON-RPC 2.0 over HTTP, SSE-aware, OAuth 2.1 + PKCE per-user delegation
+- **Auth:** JWT for KhanaDedo identity (`bcrypt` password hashing); AES-256-GCM at-rest encryption for Swiggy access tokens; optional API-key gateway via the companion [api-rate-limiter](https://github.com/rohitanakiya/api-rate-limiter)
 - **Validation:** Zod schemas + centralized typed `ApiError` middleware
-- **Auth:** JWT for user identity (`bcrypt` for password hashing) + optional API-key gateway via the companion [api-rate-limiter](https://github.com/rohitanakiya/api-rate-limiter)
 - **Hosting:** Render Web Service (backend) · Supabase (Postgres) · Vercel (frontend)
 
 ## Endpoints
 
-| Method | Path               | Auth | Purpose |
-|--------|--------------------|------|---------|
-| POST   | `/auth/signup`     | none | Create user; optionally provision a rate-limiter API key |
-| POST   | `/auth/login`      | none | Issue 7-day JWT |
-| GET    | `/profile/me`      | JWT  | Return logged-in user's profile |
-| POST   | `/chat/recommend`  | none | Public semantic recommendation |
-| GET    | `/menu`            | none | Browse seeded menu items with filters |
-| GET    | `/health`          | none | Liveness check |
+| Method | Path                     | Auth | Purpose |
+|--------|--------------------------|------|---------|
+| POST   | `/auth/signup`           | none | Create user; optionally provision a rate-limiter API key |
+| POST   | `/auth/login`            | none | Issue 7-day JWT |
+| POST   | `/auth/forgot-password`  | none | Send password-reset email via Resend |
+| POST   | `/auth/reset-password`   | none | Consume reset token, set new password |
+| POST   | `/auth/swiggy/start`     | JWT  | Begin Swiggy OAuth (returns `authorizeUrl`) |
+| GET    | `/auth/swiggy/callback`  | JWT  | OAuth redirect target; stores encrypted access token |
+| GET    | `/auth/swiggy/status`    | JWT  | Whether the user has an active Swiggy connection |
+| POST   | `/auth/swiggy/logout`    | JWT  | Disconnect Swiggy (deletes stored token) |
+| GET    | `/profile/me`            | JWT  | Return logged-in user's profile |
+| POST   | `/chat/recommend`        | none | Ranked recommendations. Seed path anon, Swiggy path for connected users |
+| GET    | `/chat/addresses`        | JWT  | List the user's Swiggy delivery addresses for the frontend picker |
+| POST   | `/chat/cart`             | JWT  | Add one item to the user's Swiggy cart via `update_food_cart` |
+| GET    | `/menu`                  | none | Browse seeded menu items (demo-mode fallback) |
+| GET    | `/health`                | none | Liveness check |
 
 ## Try it against the live API
 
@@ -151,10 +166,11 @@ The vision is an AI agent that lets users say *"find me a cheap veg high-protein
 ## Limitations (honest)
 
 - Nutrition on Swiggy items is LLM-estimated from dish names (Swiggy MCP doesn't return per-item macros). Displayed with a dashed underline and a `~` label so users know these are estimates, not measurements.
-- Embeddings stored as JSONB scanned linearly — fine at this scale, would migrate to pgvector for production.
 - No automated evaluation of recommendation quality; manual spot-checks only.
 - Cross-region latency: backend on Render Oregon, DB on Supabase Mumbai = ~400ms round-trip per query. Acceptable for demo, would co-locate before launch.
-- @xenova/transformers is not installed on the Render deploy (marked optional to keep the slug small). Semantic similarity is skipped there; ranking uses price + rating + veg-fit signals only. Local dev has full embeddings.
+- Semantic embeddings (`@xenova/transformers`) are skipped on Render to keep the slug small; the LLM re-ranking step covers most of what cosine similarity would have. Local dev has full embeddings for A/B comparison.
+- Items with required Swiggy variants (size, spice level, addons) can't be blind-added to cart — we detect the failure and fall back to opening the menu page so the user can customize + add themselves.
+- Swiggy's cart is browser-session-scoped: after one-tap add, the user must also be logged into Swiggy in the same browser to see the item at checkout. Most Indian users are, but a fresh device requires one Swiggy login step.
 
 ## Author
 
